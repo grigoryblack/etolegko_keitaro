@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Campaigns, Refs, type RefItem } from "@/api"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -40,7 +41,6 @@ export function CampaignCreator() {
   const [sourceId, setSourceId] = useState(NONE)
   const [sourceManual, setSourceManual] = useState("")
 
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -53,7 +53,6 @@ export function CampaignCreator() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setMsg(null)
     try {
       const payload = {
         name: name.trim(),
@@ -66,9 +65,9 @@ export function CampaignCreator() {
           : sourceId !== NONE ? Number(sourceId) : undefined,
       }
       const res = await Campaigns.create(payload)
-      setMsg({ ok: true, text: `Campaign created! Keitaro ID: ${res.campaign.id}, streams: ${res.streams.map((s) => s.id).join(", ")}` })
+      toast.success(`Campaign created! Keitaro ID: ${res.campaign.id}, streams: ${res.streams.map((s) => s.id).join(", ")}`)
     } catch (err) {
-      setMsg({ ok: false, text: err instanceof Error ? err.message : "Error" })
+      toast.error(err instanceof Error ? err.message : "Error")
     } finally {
       setLoading(false)
     }
@@ -103,7 +102,6 @@ export function CampaignCreator() {
           ) : (
             <RefSelect label="Traffic source" items={sources} value={sourceId} onChange={setSourceId} />
           )}
-          {msg && <p className={`text-sm ${msg.ok ? "text-green-600" : "text-destructive"}`}>{msg.text}</p>}
           <Button type="submit" disabled={loading || !offerId} className="w-fit">
             {loading ? "Creating…" : "Create campaign"}
           </Button>

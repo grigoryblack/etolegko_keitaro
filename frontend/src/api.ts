@@ -40,10 +40,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const data = await res.json().catch(() => null)
   if (!res.ok) {
     const detail = data?.detail
-    const msg =
-      typeof detail === "string"
-        ? detail
-        : detail?.error ?? JSON.stringify(detail) ?? res.statusText
+    let msg: string
+    if (Array.isArray(detail)) {
+      // pydantic validation errors: [{loc, msg}, ...]
+      msg = detail.map((e) => `${(e.loc ?? []).join(".")}: ${e.msg}`).join("; ")
+    } else if (typeof detail === "string") {
+      msg = detail
+    } else {
+      msg = detail?.error ?? JSON.stringify(detail) ?? res.statusText
+    }
     throw new ApiError(res.status, String(msg))
   }
   return data as T

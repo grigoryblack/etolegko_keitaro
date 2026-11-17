@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Campaigns, Refs, Streams, type LocalStream, type RefItem } from "@/api"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -140,11 +141,10 @@ export function OffersEditor() {
   const [campaigns, setCampaigns] = useState<Array<{ id: number; name: string }>>([])
   const [campaignId, setCampaignId] = useState("")
   const [streams, setStreams] = useState<LocalStream[]>([])
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [busy, setBusy] = useState(false)
+    const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    Refs.campaigns().then(setCampaigns).catch((e) => setMsg({ ok: false, text: e.message }))
+    Refs.campaigns().then(setCampaigns).catch((e) => toast.error(e.message))
   }, [])
 
   const loadLocal = async (cid: string) => {
@@ -154,18 +154,18 @@ export function OffersEditor() {
     try {
       setStreams(await Campaigns.localStreams(Number(cid)))
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "Error" })
+      toast.error(e instanceof Error ? e.message : "Error")
     }
   }
 
   const fetchStreams = async () => {
-    if (!campaignId) return setMsg({ ok: false, text: "Select a campaign" })
+    if (!campaignId) return toast.error("Select a campaign")
     setBusy(true)
     try {
       setStreams(await Campaigns.fetchStreams(Number(campaignId)))
-      setMsg({ ok: true, text: "Streams synced with Keitaro" })
+      toast.success("Streams synced with Keitaro")
     } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : "Error" })
+      toast.error(e instanceof Error ? e.message : "Error")
     } finally {
       setBusy(false)
     }
@@ -194,9 +194,8 @@ export function OffersEditor() {
       )}
       {streams.map((s) => (
         <StreamCard key={s.id} stream={s} onChange={updateStream}
-          onError={(m) => setMsg({ ok: false, text: m })} />
+          onError={(m) => toast.error(m)} />
       ))}
-      {msg && <p className={`text-sm ${msg.ok ? "text-green-600" : "text-destructive"}`}>{msg.text}</p>}
     </div>
   )
 }

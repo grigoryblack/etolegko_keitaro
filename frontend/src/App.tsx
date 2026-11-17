@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Auth } from "@/api"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Toaster } from "@/components/ui/sonner"
 import { LoginForm } from "@/components/LoginForm"
 import { CampaignCreator } from "@/components/CampaignCreator"
 import { OffersEditor } from "@/components/OffersEditor"
@@ -22,6 +23,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-muted/40">
+      <Toaster richColors position="top-right" />
       <header className="flex items-center justify-between border-b bg-background px-6 py-3">
         <h1 className="text-lg font-semibold">Keitaro Campaign Manager</h1>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
