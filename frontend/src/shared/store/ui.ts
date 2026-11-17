@@ -1,4 +1,4 @@
-import { create } from "zustand"
+import { create, type StateCreator } from "zustand"
 import { persist } from "zustand/middleware"
 
 interface UiState {
@@ -9,15 +9,12 @@ interface UiState {
   setCampaign: (id: string, label: string) => void
 }
 
-export const useUiStore = create<UiState>()(
-  persist(
-    (set) => ({
-      activeTab: "create",
-      campaignId: "",
-      campaignLabel: "",
-      setActiveTab: (tab) => set({ activeTab: tab }),
-      setCampaign: (id, label) => set({ campaignId: id, campaignLabel: label }),
-    }),
-    { name: "keitaro-ui" }
-  )
-)
+const creator: StateCreator<UiState> = (set) => ({
+  activeTab: "create",
+  campaignId: "",
+  campaignLabel: "",
+  setActiveTab: (tab) => set({ activeTab: tab }),
+  setCampaign: (id, label) => set({ campaignId: id, campaignLabel: label }),
+})
+
+export const useUiStore = create<UiState>()(persist(creator, { name: "keitaro-ui" }))
