@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
-from .routes import router
+from app.api.routes import auth, campaigns, references, streams
 
 app = FastAPI(title="Keitaro Campaign Manager")
-app.include_router(router)
+for r in (auth.router, references.router, campaigns.router, streams.router):
+    app.include_router(r, prefix="/api")

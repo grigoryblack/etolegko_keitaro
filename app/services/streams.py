@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from .models import Stream, StreamOffer
+from app.models import Stream, StreamOffer
 
 
 def recalc_shares(stream: Stream) -> None:
