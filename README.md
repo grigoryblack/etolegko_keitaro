@@ -10,7 +10,8 @@
 - Auth: логин/пароль админки Keitaro через форму в UI (без .env).
   Бэкенд вызывает `POST {tracker}/admin/?object=auth.login`, получает сессионную
   куку `states` и дальше работает через legacy object API `/admin/?object=...`
-  (аналог Admin API v1). Сессия хранится в памяти сервера.
+  (аналог Admin API v1). Сессия сохраняется в БД (`keitaro_sessions`)
+  и восстанавливается при рестарте сервера.
 
 ## Функционал
 
@@ -78,6 +79,13 @@ npm run dev                   # http://localhost:5173 (прокси /api → :80
 ```bash
 alembic upgrade head                              # применить
 alembic revision --autogenerate -m "message"      # новая миграция
+```
+
+### Тесты
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests -v
 ```
 
 ## Конфигурация (.env)
