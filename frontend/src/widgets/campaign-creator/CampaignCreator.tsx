@@ -18,12 +18,14 @@ function RefSelect({
   value,
   onChange,
   optional = true,
+  placeholder,
 }: {
   label: string
   items: RefItem[]
   value: string
   onChange: (v: string) => void
   optional?: boolean
+  placeholder: string
 }) {
   return (
     <div className="space-y-2">
@@ -31,11 +33,11 @@ function RefSelect({
 
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger>
-          <SelectValue placeholder={`Select ${label.toLowerCase()}`} />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
 
         <SelectContent>
-          {optional && <SelectItem value={NONE}>— none —</SelectItem>}
+          {optional && <SelectItem value={NONE}>— не выбрано —</SelectItem>}
           {items.map((i) => (
             <SelectItem key={i.id} value={String(i.id)}>{`#${i.id} — ${i.name}`}</SelectItem>
           ))}
@@ -98,10 +100,10 @@ export function CampaignCreator() {
 
       const res = await Campaigns.create(payload)
       toast.success(
-        `Campaign created! Keitaro ID: ${res.campaign.id}, streams: ${res.streams.map((s) => s.id).join(", ")}`
+        `Кампания создана! ID в Keitaro: ${res.campaign.id}, потоки: ${res.streams.map((s) => s.id).join(", ")}`
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error")
+      toast.error(err instanceof Error ? err.message : "Ошибка")
     } finally {
       setLoading(false)
     }
@@ -110,22 +112,22 @@ export function CampaignCreator() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create campaign</CardTitle>
+        <CardTitle>Создание кампании</CardTitle>
 
         <CardDescription>
-          Creates a campaign with two flows: geo → Google redirect, everyone else → selected offer
+          Создаёт кампанию с двумя потоками: гео → редирект на Google, остальные → выбранный оффер
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="grid max-w-md gap-4">
           <div className="space-y-2">
-            <Label htmlFor="cname">Campaign name</Label>
+            <Label htmlFor="cname">Название кампании</Label>
 
             <Input id="cname" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="geo">Geo (ISO alpha-2)</Label>
+            <Label htmlFor="geo">Гео (код страны, 2 буквы)</Label>
 
             <Input
               id="geo"
@@ -139,38 +141,52 @@ export function CampaignCreator() {
           </div>
 
           <RefSelect
-            label="Offer"
+            label="Оффер"
+            placeholder="Выберите оффер"
             items={offers}
             value={offerId}
             onChange={setOfferId}
             optional={false}
           />
 
-          <RefSelect label="Domain" items={domains} value={domainId} onChange={setDomainId} />
+          <RefSelect
+            label="Домен"
+            placeholder="Выберите домен"
+            items={domains}
+            value={domainId}
+            onChange={setDomainId}
+          />
 
-          <RefSelect label="Group" items={groups} value={groupId} onChange={setGroupId} />
+          <RefSelect
+            label="Группа"
+            placeholder="Выберите группу"
+            items={groups}
+            value={groupId}
+            onChange={setGroupId}
+          />
 
           {sourcesDenied ? (
             <div className="space-y-2">
-              <Label>Traffic source ID</Label>
+              <Label>ID источника трафика</Label>
 
               <Input
                 value={sourceManual}
                 onChange={(e) => setSourceManual(e.target.value)}
-                placeholder="ID (list unavailable)"
+                placeholder="ID (список недоступен)"
                 type="number"
               />
             </div>
           ) : (
             <RefSelect
-              label="Traffic source"
+              label="Источник трафика"
+              placeholder="Выберите источник"
               items={sources}
               value={sourceId}
               onChange={setSourceId}
             />
           )}
           <Button type="submit" disabled={loading || !offerId} className="w-fit">
-            {loading ? "Creating…" : "Create campaign"}
+            {loading ? "Создание…" : "Создать кампанию"}
           </Button>
         </form>
       </CardContent>

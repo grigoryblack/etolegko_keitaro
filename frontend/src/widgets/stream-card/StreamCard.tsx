@@ -29,7 +29,7 @@ export function StreamCard({
     try {
       onChange(await fn())
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error")
+      toast.error(e instanceof Error ? e.message : "Ошибка")
     } finally {
       setBusy(false)
     }
@@ -63,11 +63,11 @@ export function StreamCard({
             </span>
             {stream.dirty && (
               <Badge className="ml-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-400">
-                unpublished
+                не опубликовано
               </Badge>
             )}
             <p className="text-xs text-muted-foreground">
-              type: {stream.type ?? "—"} · schema: {stream.schema ?? "—"} · state:{" "}
+              тип: {stream.type ?? "—"} · схема: {stream.schema ?? "—"} · состояние:{" "}
               {stream.state ?? "—"}
             </p>
           </div>
@@ -87,7 +87,7 @@ export function StreamCard({
               onClick={() => run(() => Streams.cancel(stream.id))}
             >
               <Undo2 className="mr-1 h-4 w-4" />
-              Cancel
+              Отменить
             </Button>
           </div>
         </div>
@@ -95,8 +95,8 @@ export function StreamCard({
         <Table className="mt-3">
           <TableHeader>
             <TableRow>
-              <TableHead>Offer</TableHead>
-              <TableHead className="w-20">Weight</TableHead>
+              <TableHead>Оффер</TableHead>
+              <TableHead className="w-20">Вес</TableHead>
               <TableHead className="w-20">Pin</TableHead>
               <TableHead className="w-32" />
             </TableRow>
@@ -105,7 +105,7 @@ export function StreamCard({
             {active.length === 0 && removed.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-muted-foreground">
-                  Flow without offers
+                  Поток без офферов
                 </TableCell>
               </TableRow>
             )}
@@ -131,7 +131,7 @@ export function StreamCard({
                     onClick={() => run(() => Streams.removeOffer(stream.id, o.offer_id))}
                   >
                     <Trash2 className="mr-1 h-4 w-4" />
-                    Remove
+                    Удалить
                   </Button>
                 </TableCell>
               </TableRow>
@@ -141,7 +141,7 @@ export function StreamCard({
                 <TableCell>
                   {label(o)}{" "}
                   <Badge variant="secondary" className="ml-2">
-                    Removed
+                    Удалён
                   </Badge>
                 </TableCell>
                 <TableCell className="tabular-nums">{o.share}%</TableCell>
@@ -154,7 +154,7 @@ export function StreamCard({
                     onClick={() => run(() => Streams.restoreOffer(stream.id, o.offer_id))}
                   >
                     <RotateCcw className="mr-1 h-4 w-4" />
-                    Bring back
+                    Вернуть
                   </Button>
                 </TableCell>
               </TableRow>
@@ -165,7 +165,7 @@ export function StreamCard({
         <div className="relative mt-3 flex max-w-md gap-2">
           <div className="relative flex-1">
             <Input
-              placeholder="Offer ID or name"
+              placeholder="ID или название оффера"
               value={offerInput}
               onChange={(e) => search(e.target.value)}
             />
@@ -195,7 +195,7 @@ export function StreamCard({
               run(() => Streams.addOffer(stream.id, Number(offerInput.trim())))
             }}
           >
-            Add offer
+            Добавить оффер
           </Button>
         </div>
       </CardContent>

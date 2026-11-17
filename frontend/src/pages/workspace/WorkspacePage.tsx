@@ -18,7 +18,7 @@ export function WorkspacePage({ baseUrl, onLogout }: { baseUrl: string; onLogout
           <span>{baseUrl}</span>
 
           <Button size="sm" variant="outline" onClick={() => Auth.logout().finally(onLogout)}>
-            Disconnect
+            Отключиться
           </Button>
         </div>
       </header>
@@ -26,9 +26,9 @@ export function WorkspacePage({ baseUrl, onLogout }: { baseUrl: string; onLogout
       <main className="mx-auto max-w-5xl p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="create">Create campaign</TabsTrigger>
+            <TabsTrigger value="create">Создание кампании</TabsTrigger>
 
-            <TabsTrigger value="edit">Offers editor</TabsTrigger>
+            <TabsTrigger value="edit">Редактор офферов</TabsTrigger>
           </TabsList>
 
           <TabsContent value="create" className="mt-4">

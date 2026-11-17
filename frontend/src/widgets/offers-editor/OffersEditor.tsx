@@ -52,18 +52,18 @@ export function OffersEditor() {
     try {
       setStreams(await Campaigns.localStreams(Number(cid)))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error")
+      toast.error(e instanceof Error ? e.message : "Ошибка")
     }
   }
 
   const fetchStreams = async () => {
-    if (!campaignId) return toast.error("Select a campaign")
+    if (!campaignId) return toast.error("Выберите кампанию")
     setBusy(true)
     try {
       setStreams(await Campaigns.fetchStreams(Number(campaignId)))
-      toast.success("Streams synced with Keitaro")
+      toast.success("Потоки синхронизированы с Keitaro")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error")
+      toast.error(e instanceof Error ? e.message : "Ошибка")
     } finally {
       setBusy(false)
     }
@@ -76,9 +76,9 @@ export function OffersEditor() {
     <div className="space-y-4">
       <div className="flex max-w-xl items-end gap-2">
         <div className="relative flex-1 space-y-2">
-          <Label>Campaign</Label>
+          <Label>Кампания</Label>
           <Input
-            placeholder="ID, name or alias"
+            placeholder="ID, название или алиас"
             value={campaignInput}
             onChange={(e) => search(e.target.value)}
             onBlur={() => setTimeout(() => setSuggestions([]), 150)}
@@ -102,13 +102,13 @@ export function OffersEditor() {
           )}
         </div>
         <Button onClick={fetchStreams} disabled={busy}>
-          Fetch streams again
+          Загрузить потоки заново
         </Button>
       </div>
 
       {streams.length === 0 && campaignId && (
         <p className="text-sm text-muted-foreground">
-          No local streams — press «Fetch streams again»
+          Локальных потоков нет — нажмите «Загрузить потоки заново»
         </p>
       )}
       {streams.map((s) => (

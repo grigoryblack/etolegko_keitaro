@@ -23,7 +23,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
 
       onLogin()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Connection failed")
+      setError(err instanceof ApiError ? err.message : "Не удалось подключиться")
     } finally {
       setLoading(false)
     }
@@ -33,15 +33,15 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
     <div className="flex min-h-screen items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Connect to Keitaro</CardTitle>
+          <CardTitle>Подключение к Keitaro</CardTitle>
 
-          <CardDescription>Tracker URL and admin panel credentials</CardDescription>
+          <CardDescription>Адрес трекера и учётные данные админ-панели</CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="base_url">Tracker URL</Label>
+              <Label htmlFor="base_url">Адрес трекера</Label>
 
               <Input
                 id="base_url"
@@ -52,7 +52,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="login">Login</Label>
+              <Label htmlFor="login">Логин</Label>
 
               <Input
                 id="login"
@@ -63,7 +63,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Пароль</Label>
 
               <Input
                 id="password"
@@ -77,7 +77,7 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
             {error && <p className="text-sm text-destructive">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Connecting…" : "Connect"}
+              {loading ? "Подключение…" : "Подключиться"}
             </Button>
           </form>
         </CardContent>
