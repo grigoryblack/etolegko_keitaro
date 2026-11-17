@@ -6,10 +6,13 @@ import { Toaster } from "@/components/ui/sonner"
 import { LoginForm } from "@/components/LoginForm"
 import { CampaignCreator } from "@/components/CampaignCreator"
 import { OffersEditor } from "@/components/OffersEditor"
+import { useUiStore } from "@/store"
 
 export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null)
   const [baseUrl, setBaseUrl] = useState("")
+  const activeTab = useUiStore((s) => s.activeTab)
+  const setActiveTab = useUiStore((s) => s.setActiveTab)
 
   const check = () =>
     Auth.status()
@@ -34,7 +37,7 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto max-w-5xl p-6">
-        <Tabs defaultValue="create">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="create">Create campaign</TabsTrigger>
             <TabsTrigger value="edit">Offers editor</TabsTrigger>

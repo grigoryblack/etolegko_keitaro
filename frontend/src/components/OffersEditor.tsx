@@ -1,5 +1,6 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Campaigns, Refs, Streams, type LocalStream, type RefItem } from "@/api"
+import { useUiStore } from "@/store"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -137,16 +138,23 @@ function StreamCard({
 }
 
 export function OffersEditor() {
-  const [campaignId, setCampaignId] = useState("")
-  const [campaignInput, setCampaignInput] = useState("")
+  const campaignId = useUiStore((s) => s.campaignId)
+  const campaignLabel = useUiStore((s) => s.campaignLabel)
+  const setCampaign = useUiStore((s) => s.setCampaign)
+  const [campaignInput, setCampaignInput] = useState(campaignLabel)
   const [suggestions, setSuggestions] = useState<Array<{ id: number; name: string }>>([])
   const [streams, setStreams] = useState<LocalStream[]>([])
   const [busy, setBusy] = useState(false)
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  useEffect(() => {
+    if (campaignId) loadLocal(campaignId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const search = (q: string) => {
     setCampaignInput(q)
-    setCampaignId("")
+    setCampaign("", "")
     clearTimeout(debounce.current)
     if (!q.trim()) return setSuggestions([])
     debounce.current = setTimeout(async () => {
@@ -157,13 +165,15 @@ export function OffersEditor() {
   }
 
   const pickCampaign = (c: { id: number; name: string }) => {
-    setCampaignInput(`#${c.id} — ${c.name}`)
+    const label = `#${c.id} — ${c.name}`
+    setCampaignInput(label)
     setSuggestions([])
+    setCampaign(String(c.id), label)
     loadLocal(String(c.id))
   }
 
   const loadLocal = async (cid: string) => {
-    setCampaignId(cid)
+    setCampaign(cid, campaignInput || campaignLabel)
     setStreams([])
     if (!cid) return
     try {

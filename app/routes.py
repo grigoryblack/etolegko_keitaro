@@ -257,6 +257,13 @@ async def fetch_streams(
 
     offer_names = {o["id"]: o.get("name") for o in koffers or []}
 
+    # drop local streams that no longer exist in Keitaro
+    keitaro_stream_ids = {ks["id"] for ks in kstreams or []}
+    db.query(Stream).filter(
+        Stream.campaign_id == campaign_id,
+        Stream.keitaro_id.notin_(keitaro_stream_ids),
+    ).delete(synchronize_session=False)
+
     for ks in kstreams or []:
         stream = (
             db.query(Stream).filter(Stream.keitaro_id == ks["id"]).one_or_none()
