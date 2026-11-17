@@ -17,8 +17,10 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
     e.preventDefault()
     setLoading(true)
     setError("")
+
     try {
       await Auth.login(baseUrl, login, password)
+
       onLogin()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Connection failed")
@@ -32,23 +34,48 @@ export function LoginForm({ onLogin }: { onLogin: () => void }) {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Connect to Keitaro</CardTitle>
+
           <CardDescription>Tracker URL and admin panel credentials</CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="base_url">Tracker URL</Label>
-              <Input id="base_url" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://tracker.example.com" />
+
+              <Input
+                id="base_url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://tracker.example.com"
+              />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="login">Login</Label>
-              <Input id="login" value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
+
+              <Input
+                id="login"
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                autoComplete="username"
+              />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
             </div>
+
             {error && <p className="text-sm text-destructive">{error}</p>}
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Connecting…" : "Connect"}
             </Button>

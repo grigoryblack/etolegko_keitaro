@@ -8,8 +8,7 @@ export const Streams = {
     post<LocalStream>(`/streams/${sid}/offers/${oid}/remove`),
   restoreOffer: (sid: number, oid: number) =>
     post<LocalStream>(`/streams/${sid}/offers/${oid}/restore`),
-  togglePin: (sid: number, oid: number) =>
-    post<LocalStream>(`/streams/${sid}/offers/${oid}/pin`),
+  togglePin: (sid: number, oid: number) => post<LocalStream>(`/streams/${sid}/offers/${oid}/pin`),
   push: (sid: number) => post<LocalStream>(`/streams/${sid}/push`),
   cancel: (sid: number) => post<LocalStream>(`/streams/${sid}/cancel`),
 }

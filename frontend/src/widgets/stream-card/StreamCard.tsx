@@ -10,13 +10,15 @@ import { Badge } from "@/shared/ui/badge"
 import { Button } from "@/shared/ui/button"
 import { Card, CardContent } from "@/shared/ui/card"
 import { Input } from "@/shared/ui/input"
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/shared/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table"
 
 export function StreamCard({
-  stream, onChange,
-}: { stream: LocalStream; onChange: (s: LocalStream) => void }) {
+  stream,
+  onChange,
+}: {
+  stream: LocalStream
+  onChange: (s: LocalStream) => void
+}) {
   const [offerInput, setOfferInput] = useState("")
   const [suggestions, setSuggestions] = useState<RefItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -40,7 +42,9 @@ export function StreamCard({
     debounce.current = setTimeout(async () => {
       try {
         setSuggestions(await Offers.search(q))
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 200)
   }
 
@@ -54,18 +58,36 @@ export function StreamCard({
       <CardContent className="pt-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <span className="font-semibold">#{stream.keitaro_id} — {stream.name}</span>
-            {stream.dirty && <Badge className="ml-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-400">unpublished</Badge>}
+            <span className="font-semibold">
+              #{stream.keitaro_id} — {stream.name}
+            </span>
+            {stream.dirty && (
+              <Badge className="ml-2 bg-yellow-400 text-yellow-900 hover:bg-yellow-400">
+                unpublished
+              </Badge>
+            )}
             <p className="text-xs text-muted-foreground">
-              type: {stream.type ?? "—"} · schema: {stream.schema ?? "—"} · state: {stream.state ?? "—"}
+              type: {stream.type ?? "—"} · schema: {stream.schema ?? "—"} · state:{" "}
+              {stream.state ?? "—"}
             </p>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" disabled={!stream.dirty || busy} onClick={() => run(() => Streams.push(stream.id))}>
-              <Upload className="mr-1 h-4 w-4" />Push to KTM
+            <Button
+              size="sm"
+              disabled={!stream.dirty || busy}
+              onClick={() => run(() => Streams.push(stream.id))}
+            >
+              <Upload className="mr-1 h-4 w-4" />
+              Push to KTM
             </Button>
-            <Button size="sm" variant="secondary" disabled={!stream.dirty || busy} onClick={() => run(() => Streams.cancel(stream.id))}>
-              <Undo2 className="mr-1 h-4 w-4" />Cancel
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!stream.dirty || busy}
+              onClick={() => run(() => Streams.cancel(stream.id))}
+            >
+              <Undo2 className="mr-1 h-4 w-4" />
+              Cancel
             </Button>
           </div>
         </div>
@@ -81,35 +103,58 @@ export function StreamCard({
           </TableHeader>
           <TableBody>
             {active.length === 0 && removed.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="text-muted-foreground">Flow without offers</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Flow without offers
+                </TableCell>
+              </TableRow>
             )}
             {active.map((o) => (
               <TableRow key={o.id}>
                 <TableCell>{label(o)}</TableCell>
                 <TableCell className="font-semibold tabular-nums">{o.share}%</TableCell>
                 <TableCell>
-                  <Button size="sm" variant={o.pinned ? "default" : "outline"} disabled={busy}
-                    onClick={() => run(() => Streams.togglePin(stream.id, o.offer_id))}>
+                  <Button
+                    size="sm"
+                    variant={o.pinned ? "default" : "outline"}
+                    disabled={busy}
+                    onClick={() => run(() => Streams.togglePin(stream.id, o.offer_id))}
+                  >
                     <Pin className="h-4 w-4" />
                   </Button>
                 </TableCell>
                 <TableCell>
-                  <Button size="sm" variant="destructive" disabled={busy}
-                    onClick={() => run(() => Streams.removeOffer(stream.id, o.offer_id))}>
-                    <Trash2 className="mr-1 h-4 w-4" />Remove
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy}
+                    onClick={() => run(() => Streams.removeOffer(stream.id, o.offer_id))}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Remove
                   </Button>
                 </TableCell>
               </TableRow>
             ))}
             {removed.map((o) => (
               <TableRow key={o.id} className="bg-muted text-muted-foreground">
-                <TableCell>{label(o)} <Badge variant="secondary" className="ml-2">Removed</Badge></TableCell>
+                <TableCell>
+                  {label(o)}{" "}
+                  <Badge variant="secondary" className="ml-2">
+                    Removed
+                  </Badge>
+                </TableCell>
                 <TableCell className="tabular-nums">{o.share}%</TableCell>
                 <TableCell />
                 <TableCell>
-                  <Button size="sm" variant="outline" disabled={busy}
-                    onClick={() => run(() => Streams.restoreOffer(stream.id, o.offer_id))}>
-                    <RotateCcw className="mr-1 h-4 w-4" />Bring back
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => run(() => Streams.restoreOffer(stream.id, o.offer_id))}
+                  >
+                    <RotateCcw className="mr-1 h-4 w-4" />
+                    Bring back
                   </Button>
                 </TableCell>
               </TableRow>
@@ -119,20 +164,37 @@ export function StreamCard({
 
         <div className="relative mt-3 flex max-w-md gap-2">
           <div className="relative flex-1">
-            <Input placeholder="Offer ID or name" value={offerInput} onChange={(e) => search(e.target.value)} />
+            <Input
+              placeholder="Offer ID or name"
+              value={offerInput}
+              onChange={(e) => search(e.target.value)}
+            />
             {suggestions.length > 0 && offerInput && (
               <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover shadow-md">
                 {suggestions.slice(0, 15).map((o) => (
-                  <button key={o.id} type="button" className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                    onClick={() => { setOfferInput(String(o.id)); setSuggestions([]) }}>
+                  <button
+                    key={o.id}
+                    type="button"
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+                    onClick={() => {
+                      setOfferInput(String(o.id))
+                      setSuggestions([])
+                    }}
+                  >
                     #{o.id} — {o.name}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <Button size="sm" disabled={busy || !offerInput.trim()}
-            onClick={() => { setSuggestions([]); run(() => Streams.addOffer(stream.id, Number(offerInput.trim()))) }}>
+          <Button
+            size="sm"
+            disabled={busy || !offerInput.trim()}
+            onClick={() => {
+              setSuggestions([])
+              run(() => Streams.addOffer(stream.id, Number(offerInput.trim())))
+            }}
+          >
             Add offer
           </Button>
         </div>

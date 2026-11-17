@@ -14,9 +14,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const data = await res.json().catch(() => null)
   if (!res.ok) {
     const detail = data?.detail
+
     let msg: string
     if (Array.isArray(detail)) {
-      // pydantic validation errors: [{loc, msg}, ...]
       msg = detail.map((e) => `${(e.loc ?? []).join(".")}: ${e.msg}`).join("; ")
     } else if (typeof detail === "string") {
       msg = detail

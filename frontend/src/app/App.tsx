@@ -11,15 +11,20 @@ export default function App() {
 
   useEffect(() => {
     Auth.status()
-      .then((s) => { setConnected(s.connected); setBaseUrl(s.base_url ?? "") })
+      .then((s) => {
+        setConnected(s.connected)
+        setBaseUrl(s.base_url ?? "")
+      })
       .catch(() => setConnected(false))
   }, [])
 
   if (connected === null) return null
+
   if (!connected) {
     return (
       <>
         <Toaster richColors position="top-right" />
+
         <LoginForm onLogin={() => setConnected(true)} />
       </>
     )
@@ -28,6 +33,7 @@ export default function App() {
   return (
     <>
       <Toaster richColors position="top-right" />
+
       <WorkspacePage baseUrl={baseUrl} onLogout={() => setConnected(false)} />
     </>
   )

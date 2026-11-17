@@ -32,7 +32,9 @@ export function OffersEditor() {
     debounce.current = setTimeout(async () => {
       try {
         setSuggestions(await Campaigns.search(q))
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 200)
   }
 
@@ -84,20 +86,30 @@ export function OffersEditor() {
           {suggestions.length > 0 && (
             <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
               {suggestions.slice(0, 20).map((c) => (
-                <button key={c.id} type="button"
+                <button
+                  key={c.id}
+                  type="button"
                   className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                  onMouseDown={(e) => { e.preventDefault(); pickCampaign(c) }}>
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    pickCampaign(c)
+                  }}
+                >
                   #{c.id} — {c.name}
                 </button>
               ))}
             </div>
           )}
         </div>
-        <Button onClick={fetchStreams} disabled={busy}>Fetch streams again</Button>
+        <Button onClick={fetchStreams} disabled={busy}>
+          Fetch streams again
+        </Button>
       </div>
 
       {streams.length === 0 && campaignId && (
-        <p className="text-sm text-muted-foreground">No local streams — press «Fetch streams again»</p>
+        <p className="text-sm text-muted-foreground">
+          No local streams — press «Fetch streams again»
+        </p>
       )}
       {streams.map((s) => (
         <StreamCard key={s.id} stream={s} onChange={updateStream} />
