@@ -3,6 +3,7 @@ import { Campaigns } from "@/entities/campaign/api"
 import { Offers } from "@/entities/offer/api"
 import { Refs } from "@/entities/reference/api"
 import type { RefItem } from "@/shared/types/refs"
+import type { RefSelectProps } from "./types"
 import { toast } from "sonner"
 import { Button } from "@/shared/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card"
@@ -19,14 +20,7 @@ function RefSelect({
   onChange,
   optional = true,
   placeholder,
-}: {
-  label: string
-  items: RefItem[]
-  value: string
-  onChange: (v: string) => void
-  optional?: boolean
-  placeholder: string
-}) {
+}: RefSelectProps) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>

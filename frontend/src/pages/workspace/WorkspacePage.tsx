@@ -4,8 +4,9 @@ import { Button } from "@/shared/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs"
 import { CampaignCreator } from "@/widgets/campaign-creator/CampaignCreator"
 import { OffersEditor } from "@/widgets/offers-editor/OffersEditor"
+import type { WorkspacePageProps } from "./types"
 
-export function WorkspacePage({ baseUrl, onLogout }: { baseUrl: string; onLogout: () => void }) {
+export function WorkspacePage({ baseUrl, onLogout }: WorkspacePageProps) {
   const activeTab = useUiStore((s) => s.activeTab)
   const setActiveTab = useUiStore((s) => s.setActiveTab)
 

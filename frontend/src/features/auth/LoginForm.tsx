@@ -5,8 +5,9 @@ import { Button } from "@/shared/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card"
 import { Input } from "@/shared/ui/input"
 import { Label } from "@/shared/ui/label"
+import type { LoginFormProps } from "./types"
 
-export function LoginForm({ onLogin }: { onLogin: () => void }) {
+export function LoginForm({ onLogin }: LoginFormProps) {
   const [baseUrl, setBaseUrl] = useState("https://tlgk.host")
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")

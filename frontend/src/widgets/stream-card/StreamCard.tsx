@@ -5,6 +5,7 @@ import { Pin, RotateCcw, Trash2, Undo2, Upload } from "lucide-react"
 import { Offers } from "@/entities/offer/api"
 import { Streams } from "@/entities/stream/api"
 import type { LocalStream } from "@/entities/stream/types"
+import type { StreamCardProps } from "./types"
 import type { RefItem } from "@/shared/types/refs"
 import { Badge } from "@/shared/ui/badge"
 import { Button } from "@/shared/ui/button"
@@ -12,13 +13,7 @@ import { Card, CardContent } from "@/shared/ui/card"
 import { Input } from "@/shared/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/shared/ui/table"
 
-export function StreamCard({
-  stream,
-  onChange,
-}: {
-  stream: LocalStream
-  onChange: (s: LocalStream) => void
-}) {
+export function StreamCard({ stream, onChange }: StreamCardProps) {
   const [offerInput, setOfferInput] = useState("")
   const [suggestions, setSuggestions] = useState<RefItem[]>([])
   const [busy, setBusy] = useState(false)
