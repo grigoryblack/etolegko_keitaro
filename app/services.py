@@ -80,7 +80,10 @@ def sync_stream_from_keitaro(
             offer.share = next(
                 o["share"] for o in baseline if o["offer_id"] == offer.offer_id
             )
-        elif offer.offer_id in previous_baseline:
+        elif offer.offer_id in previous_baseline or (
+            offer.status == "removed" and offer.was_synced
+        ):
+            # gone from Keitaro (or already archived earlier): keep as removed
             offer.status = "removed"
             offer.was_synced = True
             offer.share = 0
