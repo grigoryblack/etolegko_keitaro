@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from "react"
-import { Campaigns, Refs, Streams, type LocalStream, type RefItem } from "@/api"
-import { useUiStore } from "@/store"
+import { useRef, useState } from "react"
 import { toast } from "sonner"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Pin, RotateCcw, Trash2, Undo2, Upload } from "lucide-react"
 
-function StreamCard({
-  stream, onChange, onError,
-}: { stream: LocalStream; onChange: (s: LocalStream) => void; onError: (m: string) => void }) {
+import { Offers } from "@/entities/offer/api"
+import { Streams } from "@/entities/stream/api"
+import type { LocalStream } from "@/entities/stream/types"
+import type { RefItem } from "@/shared/types/refs"
+import { Badge } from "@/shared/ui/badge"
+import { Button } from "@/shared/ui/button"
+import { Card, CardContent } from "@/shared/ui/card"
+import { Input } from "@/shared/ui/input"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/shared/ui/table"
+
+export function StreamCard({
+  stream, onChange,
+}: { stream: LocalStream; onChange: (s: LocalStream) => void }) {
   const [offerInput, setOfferInput] = useState("")
   const [suggestions, setSuggestions] = useState<RefItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -23,7 +27,7 @@ function StreamCard({
     try {
       onChange(await fn())
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Error")
+      toast.error(e instanceof Error ? e.message : "Error")
     } finally {
       setBusy(false)
     }
@@ -35,7 +39,7 @@ function StreamCard({
     if (!q.trim()) return setSuggestions([])
     debounce.current = setTimeout(async () => {
       try {
-        setSuggestions(await Refs.offerSearch(q))
+        setSuggestions(await Offers.search(q))
       } catch { /* ignore */ }
     }, 200)
   }
@@ -134,104 +138,5 @@ function StreamCard({
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-export function OffersEditor() {
-  const campaignId = useUiStore((s) => s.campaignId)
-  const campaignLabel = useUiStore((s) => s.campaignLabel)
-  const setCampaign = useUiStore((s) => s.setCampaign)
-  const [campaignInput, setCampaignInput] = useState(campaignLabel)
-  const [suggestions, setSuggestions] = useState<Array<{ id: number; name: string }>>([])
-  const [streams, setStreams] = useState<LocalStream[]>([])
-  const [busy, setBusy] = useState(false)
-  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
-  useEffect(() => {
-    if (campaignId) loadLocal(campaignId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const search = (q: string) => {
-    setCampaignInput(q)
-    setCampaign("", "")
-    clearTimeout(debounce.current)
-    if (!q.trim()) return setSuggestions([])
-    debounce.current = setTimeout(async () => {
-      try {
-        setSuggestions(await Refs.campaignSearch(q))
-      } catch { /* ignore */ }
-    }, 200)
-  }
-
-  const pickCampaign = (c: { id: number; name: string }) => {
-    const label = `#${c.id} — ${c.name}`
-    setCampaignInput(label)
-    setSuggestions([])
-    setCampaign(String(c.id), label)
-    loadLocal(String(c.id))
-  }
-
-  const loadLocal = async (cid: string) => {
-    setCampaign(cid, campaignInput || campaignLabel)
-    setStreams([])
-    if (!cid) return
-    try {
-      setStreams(await Campaigns.localStreams(Number(cid)))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error")
-    }
-  }
-
-  const fetchStreams = async () => {
-    if (!campaignId) return toast.error("Select a campaign")
-    setBusy(true)
-    try {
-      setStreams(await Campaigns.fetchStreams(Number(campaignId)))
-      toast.success("Streams synced with Keitaro")
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error")
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const updateStream = (s: LocalStream) =>
-    setStreams((prev) => prev.map((x) => (x.id === s.id ? s : x)))
-
-  return (
-    <div className="space-y-4">
-      <div className="flex max-w-xl items-end gap-2">
-        <div className="relative flex-1 space-y-2">
-          <Label>Campaign</Label>
-          <Input
-            placeholder="ID, name or alias"
-            value={campaignInput}
-            onChange={(e) => search(e.target.value)}
-            onBlur={() => setTimeout(() => setSuggestions([]), 150)}
-          />
-          {suggestions.length > 0 && (
-            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
-              {suggestions.slice(0, 20).map((c) => (
-                <button key={c.id} type="button"
-                  className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
-                  onMouseDown={(e) => { e.preventDefault(); pickCampaign(c) }}>
-                  #{c.id} — {c.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <Button onClick={fetchStreams} disabled={busy}>Fetch streams again</Button>
-      </div>
-
-      {streams.length === 0 && campaignId && (
-        <p className="text-sm text-muted-foreground">No local streams — press «Fetch streams again»</p>
-      )}
-      {streams.map((s) => (
-        <StreamCard key={s.id} stream={s} onChange={updateStream}
-          onError={(m) => toast.error(m)} />
-      ))}
-    </div>
   )
 }

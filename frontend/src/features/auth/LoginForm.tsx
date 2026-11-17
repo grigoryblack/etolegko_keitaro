@@ -1,9 +1,10 @@
 import { useState } from "react"
-import { Auth, ApiError } from "@/api"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Auth } from "@/entities/auth/api"
+import { ApiError } from "@/shared/api/client"
+import { Button } from "@/shared/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card"
+import { Input } from "@/shared/ui/input"
+import { Label } from "@/shared/ui/label"
 
 export function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [baseUrl, setBaseUrl] = useState("https://tlgk.host")
