@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import { Auth } from "@/entities/auth/api"
-import { LoginForm } from "@/features/auth/LoginForm"
+import { LoginPage } from "@/pages/login/LoginPage"
 import { WorkspacePage } from "@/pages/workspace/WorkspacePage"
 import { Toaster } from "@/shared/ui/sonner"
 
@@ -20,21 +21,35 @@ export default function App() {
 
   if (connected === null) return null
 
-  if (!connected) {
-    return (
-      <>
-        <Toaster richColors position="top-right" />
-
-        <LoginForm onLogin={() => setConnected(true)} />
-      </>
-    )
-  }
-
   return (
-    <>
+    <BrowserRouter>
       <Toaster richColors position="top-right" />
 
-      <WorkspacePage baseUrl={baseUrl} onLogout={() => setConnected(false)} />
-    </>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            connected ? (
+              <Navigate to="/" replace />
+            ) : (
+              <LoginPage onLogin={() => setConnected(true)} />
+            )
+          }
+        />
+
+        <Route
+          path="/"
+          element={
+            connected ? (
+              <WorkspacePage baseUrl={baseUrl} onLogout={() => setConnected(false)} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
