@@ -1,20 +1,6 @@
 import { api, post } from "@/shared/api/client"
 import type { LocalStream } from "@/entities/stream/types"
-
-export interface CampaignItem {
-  id: number
-  name: string
-  alias: string
-}
-
-export interface CampaignCreatePayload {
-  name: string
-  geo: string
-  offer_id: number
-  domain_id?: number
-  group_id?: number
-  source_id?: number
-}
+import type { CampaignCreatePayload, CampaignItem } from "./types"
 
 export const Campaigns = {
   list: () => api<CampaignItem[]>("/campaigns"),
