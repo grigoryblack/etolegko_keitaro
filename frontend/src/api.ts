@@ -71,6 +71,8 @@ export const Refs = {
   groups: () => api<RefItem[]>("/groups"),
   sources: () => api<RefItem[]>("/sources"),
   campaigns: () => api<Array<{ id: number; name: string; alias: string }>>("/campaigns"),
+  campaignSearch: (q: string) =>
+    api<Array<{ id: number; name: string; alias: string }>>(`/campaigns/search?query=${encodeURIComponent(q)}`),
 }
 
 export interface CampaignCreatePayload {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Campaigns, Refs, Streams, type LocalStream, type RefItem } from "@/api"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Pin, RotateCcw, Trash2, Undo2, Upload } from "lucide-react"
 
@@ -138,14 +137,30 @@ function StreamCard({
 }
 
 export function OffersEditor() {
-  const [campaigns, setCampaigns] = useState<Array<{ id: number; name: string }>>([])
   const [campaignId, setCampaignId] = useState("")
+  const [campaignInput, setCampaignInput] = useState("")
+  const [suggestions, setSuggestions] = useState<Array<{ id: number; name: string }>>([])
   const [streams, setStreams] = useState<LocalStream[]>([])
-    const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  useEffect(() => {
-    Refs.campaigns().then(setCampaigns).catch((e) => toast.error(e.message))
-  }, [])
+  const search = (q: string) => {
+    setCampaignInput(q)
+    setCampaignId("")
+    clearTimeout(debounce.current)
+    if (!q.trim()) return setSuggestions([])
+    debounce.current = setTimeout(async () => {
+      try {
+        setSuggestions(await Refs.campaignSearch(q))
+      } catch { /* ignore */ }
+    }, 200)
+  }
+
+  const pickCampaign = (c: { id: number; name: string }) => {
+    setCampaignInput(`#${c.id} — ${c.name}`)
+    setSuggestions([])
+    loadLocal(String(c.id))
+  }
 
   const loadLocal = async (cid: string) => {
     setCampaignId(cid)
@@ -177,14 +192,25 @@ export function OffersEditor() {
   return (
     <div className="space-y-4">
       <div className="flex max-w-xl items-end gap-2">
-        <div className="flex-1 space-y-2">
+        <div className="relative flex-1 space-y-2">
           <Label>Campaign</Label>
-          <Select value={campaignId} onValueChange={loadLocal}>
-            <SelectTrigger><SelectValue placeholder="Select campaign" /></SelectTrigger>
-            <SelectContent>
-              {campaigns.map((c) => <SelectItem key={c.id} value={String(c.id)}>{`#${c.id} — ${c.name}`}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input
+            placeholder="ID, name or alias"
+            value={campaignInput}
+            onChange={(e) => search(e.target.value)}
+            onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+          />
+          {suggestions.length > 0 && (
+            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+              {suggestions.slice(0, 20).map((c) => (
+                <button key={c.id} type="button"
+                  className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+                  onMouseDown={(e) => { e.preventDefault(); pickCampaign(c) }}>
+                  #{c.id} — {c.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <Button onClick={fetchStreams} disabled={busy}>Fetch streams again</Button>
       </div>

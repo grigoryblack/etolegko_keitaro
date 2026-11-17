@@ -217,6 +217,27 @@ async def list_campaigns(client: KeitaroClient = Depends(keitaro_dep)):
         raise handle_keitaro_error(exc)
 
 
+@router.get("/campaigns/search")
+async def search_campaigns(
+    query: str = "", client: KeitaroClient = Depends(keitaro_dep)
+):
+    """Campaign autocomplete: filters Keitaro campaigns by id/name/alias."""
+    try:
+        all_campaigns = await client.list_campaigns()
+    except KeitaroError as exc:
+        raise handle_keitaro_error(exc)
+    q = query.strip().lower()
+    if not q:
+        return all_campaigns
+    return [
+        c
+        for c in all_campaigns
+        if q in str(c.get("id", ""))
+        or q in (c.get("name") or "").lower()
+        or q in (c.get("alias") or "").lower()
+    ]
+
+
 @router.post("/campaigns/{campaign_id}/fetch_streams")
 async def fetch_streams(
     campaign_id: int,
