@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Keitaro Campaign Manager</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f4f5f7; color: #222; }
+  header { background: #1f2937; color: #fff; padding: 14px 24px; font-size: 18px; font-weight: 600; }
+  .tabs { display: flex; gap: 4px; padding: 12px 24px 0; }
+  .tabs button { padding: 8px 16px; border: 1px solid #d1d5db; border-bottom: none; background: #e5e7eb; cursor: pointer; border-radius: 6px 6px 0 0; }
+  .tabs button.active { background: #fff; font-weight: 600; }
+  main { margin: 0 24px 24px; background: #fff; border: 1px solid #d1d5db; border-radius: 0 6px 6px 6px; padding: 24px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
+  input, select { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 260px; font-size: 14px; }
+  button.action { margin-top: 16px; padding: 9px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.action:hover { background: #1d4ed8; }
+  button.danger { background: #dc2626; padding: 4px 10px; font-size: 12px; }
+  button.danger:hover { background: #b91c1c; }
+  button.small { padding: 4px 10px; font-size: 13px; margin-top: 0; }
+  table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+  th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; font-size: 14px; }
+  th { background: #f9fafb; }
+  .msg { margin-top: 14px; padding: 10px 14px; border-radius: 6px; font-size: 14px; display: none; white-space: pre-wrap; }
+  .msg.ok { display: block; background: #dcfce7; color: #166534; }
+  .msg.err { display: block; background: #fee2e2; color: #991b1b; }
+  .stream { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .stream h3 { margin: 0 0 4px; font-size: 15px; }
+  .muted { color: #6b7280; font-size: 12px; }
+  .row { display: flex; gap: 8px; align-items: end; margin-top: 12px; }
+</style>
+</head>
+<body>
+<header>Keitaro Campaign Manager</header>
+<div class="tabs">
+  <button id="tab-create" class="active" onclick="switchTab('create')">Создать кампанию</button>
+  <button id="tab-edit" onclick="switchTab('edit')">Редактор офферов</button>
+</div>
+<main>
+  <!-- Part 1: creator -->
+  <section id="panel-create" class="tab-panel active">
+    <label>Название кампании</label>
+    <input id="c-name" placeholder="My campaign">
+    <label>Гео (ISO alpha-2, например RU)</label>
+    <input id="c-geo" maxlength="2" placeholder="RU" style="min-width:80px">
+    <label>Оффер</label>
+    <select id="c-offer"></select>
+    <label>Домен</label>
+    <select id="c-domain"></select>
+    <label>Группа</label>
+    <select id="c-group"></select>
+    <label>Источник трафика</label>
+    <select id="c-source"></select>
+    <br>
+    <button class="action" onclick="createCampaign()">Создать кампанию</button>
+    <div id="c-msg" class="msg"></div>
+  </section>
+
+  <!-- Part 2: editor -->
+  <section id="panel-edit" class="tab-panel">
+    <label>Кампания</label>
+    <select id="e-campaign" onchange="loadStreams()"></select>
+    <button class="action small" onclick="loadStreams()">Обновить</button>
+    <div id="e-streams"></div>
+    <div id="e-msg" class="msg"></div>
+  </section>
+</main>
+
+<script>
+const api = async (path, opts = {}) => {
+  const res = await fetch('/api' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = data && data.detail ? JSON.stringify(data.detail) : res.statusText;
+    throw new Error(detail);
+  }
+  return data;
+};
+
+let offersCache = [];
+let campaignsCache = [];
+
+function switchTab(tab) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'edit') loadCampaigns();
+}
+
+function fillSelect(el, items, { valueKey = 'id', labelKey = 'name', emptyLabel = null } = {}) {
+  el.innerHTML = '';
+  if (emptyLabel !== null) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = emptyLabel;
+    el.appendChild(opt);
+  }
+  (items || []).forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item[valueKey];
+    opt.textContent = `#${item[valueKey]} — ${item[labelKey]}`;
+    el.appendChild(opt);
+  });
+}
+
+function showMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + (ok ? 'ok' : 'err');
+}
+
+async function loadRefs() {
+  try {
+    const [offers, domains, groups, sources] = await Promise.all([
+      api('/offers'), api('/domains'), api('/groups'), api('/sources'),
+    ]);
+    offersCache = offers || [];
+    fillSelect(document.getElementById('c-offer'), offersCache);
+    fillSelect(document.getElementById('c-domain'), domains, { emptyLabel: '— не выбран —' });
+    fillSelect(document.getElementById('c-group'), groups, { emptyLabel: '— не выбрана —' });
+    fillSelect(document.getElementById('c-source'), sources, { emptyLabel: '— не выбран —' });
+  } catch (e) {
+    showMsg('c-msg', 'Не удалось загрузить данные из Keitaro: ' + e.message, false);
+  }
+}
+
+async function createCampaign() {
+  const payload = {
+    name: document.getElementById('c-name').value.trim(),
+    geo: document.getElementById('c-geo').value.trim().toUpperCase(),
+    offer_id: parseInt(document.getElementById('c-offer').value, 10),
+  };
+  for (const [id, key] of [['c-domain', 'domain_id'], ['c-group', 'group_id'], ['c-source', 'source_id']]) {
+    const v = document.getElementById(id).value;
+    if (v) payload[key] = parseInt(v, 10);
+  }
+  if (!payload.name || payload.geo.length !== 2 || !payload.offer_id) {
+    showMsg('c-msg', 'Заполните название, гео (2 буквы) и выберите оффер', false);
+    return;
+  }
+  try {
+    const res = await api('/campaigns', { method: 'POST', body: JSON.stringify(payload) });
+    showMsg('c-msg', `Кампания создана! Keitaro ID: ${res.campaign.id}, потоки: ${res.streams.map(s => s.id).join(', ')}`, true);
+  } catch (e) {
+    showMsg('c-msg', 'Ошибка: ' + e.message, false);
+  }
+}
+
+async function loadCampaigns() {
+  try {
+    campaignsCache = await api('/campaigns');
+    fillSelect(document.getElementById('e-campaign'), campaignsCache, { emptyLabel: '— выберите кампанию —' });
+  } catch (e) {
+    showMsg('e-msg', 'Не удалось загрузить кампании: ' + e.message, false);
+  }
+}
+
+function offerName(id) {
+  const o = offersCache.find(x => x.id === id);
+  return o ? `#${id} — ${o.name}` : `#${id}`;
+}
+
+async function loadStreams() {
+  const cid = document.getElementById('e-campaign').value;
+  const container = document.getElementById('e-streams');
+  container.innerHTML = '';
+  if (!cid) return;
+  try {
+    if (!offersCache.length) offersCache = await api('/offers');
+    const streams = await api(`/campaigns/${cid}/streams`);
+    if (!streams.length) container.innerHTML = '<p class="muted">В кампании нет потоков</p>';
+    streams.forEach(s => container.appendChild(renderStream(cid, s)));
+  } catch (e) {
+    showMsg('e-msg', 'Ошибка: ' + e.message, false);
+  }
+}
+
+function renderStream(cid, s) {
+  const div = document.createElement('div');
+  div.className = 'stream';
+  div.innerHTML = `<h3>#${s.id} — ${s.name}</h3>
+    <div class="muted">тип: ${s.type} · схема: ${s.schema} · состояние: ${s.state}</div>`;
+
+  const offers = s.offers || [];
+  const table = document.createElement('table');
+  table.innerHTML = '<tr><th>Оффер</th><th>Доля, %</th><th></th></tr>';
+  if (!offers.length) {
+    table.innerHTML += '<tr><td colspan="3" class="muted">Нет офферов в потоке</td></tr>';
+  }
+  offers.forEach(o => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${offerName(o.offer_id)}</td>
+      <td><input type="number" min="1" max="100" value="${o.share}" style="min-width:70px;width:80px">
+          <button class="action small" data-save>Сохранить</button></td>
+      <td><button class="action danger" data-del>Удалить</button></td>`;
+    tr.querySelector('[data-save]').onclick = () => updateShare(cid, s.id, o.offer_id, tr.querySelector('input').value);
+    tr.querySelector('[data-del]').onclick = () => removeOffer(cid, s.id, o.offer_id);
+    table.appendChild(tr);
+  });
+  div.appendChild(table);
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  const sel = document.createElement('select');
+  fillSelect(sel, offersCache.filter(x => !offers.some(o => o.offer_id === x.id)), { emptyLabel: '— выберите оффер —' });
+  const share = document.createElement('input');
+  share.type = 'number'; share.min = 1; share.max = 100; share.value = 100;
+  share.style.minWidth = '70px'; share.style.width = '80px';
+  const btn = document.createElement('button');
+  btn.className = 'action small'; btn.textContent = 'Добавить оффер';
+  btn.onclick = () => addOffer(cid, s.id, sel.value, share.value);
+  row.append(sel, share, btn);
+  div.appendChild(row);
+  return div;
+}
+
+async function addOffer(cid, sid, offerId, share) {
+  if (!offerId) { showMsg('e-msg', 'Выберите оффер', false); return; }
+  try {
+    await api(`/campaigns/${cid}/streams/${sid}/offers`, {
+      method: 'POST', body: JSON.stringify({ offer_id: parseInt(offerId, 10), share: parseInt(share, 10) }),
+    });
+    showMsg('e-msg', 'Оффер добавлен', true);
+    loadStreams();
+  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
+}
+
+async function removeOffer(cid, sid, offerId) {
+  try {
+    await api(`/campaigns/${cid}/streams/${sid}/offers/${offerId}`, { method: 'DELETE' });
+    showMsg('e-msg', 'Оффер удалён', true);
+    loadStreams();
+  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
+}
+
+async function updateShare(cid, sid, offerId, share) {
+  try {
+    await api(`/campaigns/${cid}/streams/${sid}/offers/${offerId}`, {
+      method: 'PUT', body: JSON.stringify({ offer_id: offerId, share: parseInt(share, 10) }),
+    });
+    showMsg('e-msg', 'Доля обновлена', true);
+  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
+}
+
+loadRefs();
+</script>
+</body>
+</html>
