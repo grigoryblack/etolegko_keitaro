@@ -7,7 +7,7 @@
 
 - Backend: FastAPI + SQLAlchemy + Alembic + httpx
 - Frontend: React + Vite + Tailwind + shadcn/ui (`frontend/`)
-- Auth: логин/пароль админки Keitaro через форму в UI (без .env).
+- Auth: логин/пароль админки Keitaro через форму в UI.
   Бэкенд вызывает `POST {tracker}/admin/?object=auth.login`, получает сессионную
   куку `states` и дальше работает через legacy object API `/admin/?object=...`
   (аналог Admin API v1). Сессия сохраняется в БД (`keitaro_sessions`)
@@ -53,7 +53,19 @@ Auth endpoints: `POST /api/auth/login {base_url, login, password}`,
 
 ## Запуск
 
-### Backend
+### Docker (рекомендуется)
+
+```bash
+docker compose up        # http://localhost:8080
+```
+
+Поднимает три сервиса: `frontend` (nginx, статика + прокси `/api`),
+`backend` (uvicorn, перед стартом сам применяет миграции `alembic upgrade head`)
+и `db` (Postgres 16, данные в named volume `pgdata` — переживает перезапуски).
+
+Остановка: `docker compose down`. Полный сброс БД: `docker compose down -v`.
+
+### Backend (локально)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
