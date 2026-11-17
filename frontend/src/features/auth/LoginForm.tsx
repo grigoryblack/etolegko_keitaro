@@ -20,7 +20,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setError("")
 
     try {
-      await Auth.login(baseUrl, login, password)
+      await Auth.login(baseUrl.trim(), login.trim(), password.trim())
 
       onLogin()
     } catch (err) {
