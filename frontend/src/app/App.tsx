@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
+import { GuestOnly, RequireAuth } from "@/app/guards"
 import { Auth } from "@/entities/auth/api"
 import { LoginPage } from "@/pages/login/LoginPage"
 import { WorkspacePage } from "@/pages/workspace/WorkspacePage"
@@ -29,22 +30,18 @@ export default function App() {
         <Route
           path="/login"
           element={
-            connected ? (
-              <Navigate to="/" replace />
-            ) : (
+            <GuestOnly connected={connected}>
               <LoginPage onLogin={() => setConnected(true)} />
-            )
+            </GuestOnly>
           }
         />
 
         <Route
           path="/"
           element={
-            connected ? (
+            <RequireAuth connected={connected}>
               <WorkspacePage baseUrl={baseUrl} onLogout={() => setConnected(false)} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </RequireAuth>
           }
         />
 
