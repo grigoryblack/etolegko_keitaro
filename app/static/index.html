@@ -15,21 +15,34 @@
   .tab-panel.active { display: block; }
   label { display: block; margin: 12px 0 4px; font-size: 13px; font-weight: 600; }
   input, select { padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 260px; font-size: 14px; }
-  button.action { margin-top: 16px; padding: 9px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button.action { padding: 9px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
   button.action:hover { background: #1d4ed8; }
-  button.danger { background: #dc2626; padding: 4px 10px; font-size: 12px; }
+  button.action:disabled { background: #9ca3af; cursor: default; }
+  button.danger { background: #dc2626; }
   button.danger:hover { background: #b91c1c; }
-  button.small { padding: 4px 10px; font-size: 13px; margin-top: 0; }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.ghost { background: #6b7280; }
+  button.ghost:hover { background: #4b5563; }
+  button.pin { background: #f59e0b; }
+  button.pin.on { background: #d97706; box-shadow: inset 0 0 0 2px #92400e; }
   table { border-collapse: collapse; margin-top: 12px; width: 100%; }
   th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; font-size: 14px; }
   th { background: #f9fafb; }
   .msg { margin-top: 14px; padding: 10px 14px; border-radius: 6px; font-size: 14px; display: none; white-space: pre-wrap; }
   .msg.ok { display: block; background: #dcfce7; color: #166534; }
   .msg.err { display: block; background: #fee2e2; color: #991b1b; }
-  .stream { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 16px; }
-  .stream h3 { margin: 0 0 4px; font-size: 15px; }
+  .stream { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 16px; background: #fff; }
+  .stream.dirty { background: #fef9c3; border-color: #facc15; }
+  .stream h3 { margin: 0 0 4px; font-size: 15px; display: inline-block; }
   .muted { color: #6b7280; font-size: 12px; }
-  .row { display: flex; gap: 8px; align-items: end; margin-top: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  tr.removed td { background: #f3f4f6; color: #6b7280; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 8px; vertical-align: middle; }
+  .badge.dirty { background: #facc15; color: #713f12; }
+  .badge.removed { background: #9ca3af; color: #fff; }
+  .toolbar { float: right; }
+  .toolbar button { margin-left: 6px; }
+  .share { font-variant-numeric: tabular-nums; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -54,15 +67,19 @@
     <label>Источник трафика</label>
     <select id="c-source"></select>
     <br>
-    <button class="action" onclick="createCampaign()">Создать кампанию</button>
+    <button class="action" style="margin-top:16px" onclick="createCampaign()">Создать кампанию</button>
     <div id="c-msg" class="msg"></div>
   </section>
 
-  <!-- Part 2: editor -->
+  <!-- Part 2: staged offers editor -->
   <section id="panel-edit" class="tab-panel">
-    <label>Кампания</label>
-    <select id="e-campaign" onchange="loadStreams()"></select>
-    <button class="action small" onclick="loadStreams()">Обновить</button>
+    <div class="row">
+      <div>
+        <label>Кампания</label>
+        <select id="e-campaign" onchange="loadLocalStreams()"></select>
+      </div>
+      <button class="action" onclick="fetchStreams()">Fetch streams again</button>
+    </div>
     <div id="e-streams"></div>
     <div id="e-msg" class="msg"></div>
   </section>
@@ -83,7 +100,6 @@ const api = async (path, opts = {}) => {
 };
 
 let offersCache = [];
-let campaignsCache = [];
 
 function switchTab(tab) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
@@ -152,100 +168,149 @@ async function createCampaign() {
   }
 }
 
+// ---------- part 2: editor ----------
+
 async function loadCampaigns() {
   try {
-    campaignsCache = await api('/campaigns');
-    fillSelect(document.getElementById('e-campaign'), campaignsCache, { emptyLabel: '— выберите кампанию —' });
+    const campaigns = await api('/campaigns');
+    fillSelect(document.getElementById('e-campaign'), campaigns, { emptyLabel: '— выберите кампанию —' });
+    document.getElementById('e-streams').innerHTML = '';
   } catch (e) {
     showMsg('e-msg', 'Не удалось загрузить кампании: ' + e.message, false);
   }
 }
 
-function offerName(id) {
-  const o = offersCache.find(x => x.id === id);
-  return o ? `#${id} — ${o.name}` : `#${id}`;
+function selectedCampaign() {
+  return document.getElementById('e-campaign').value;
 }
 
-async function loadStreams() {
-  const cid = document.getElementById('e-campaign').value;
-  const container = document.getElementById('e-streams');
-  container.innerHTML = '';
-  if (!cid) return;
+async function fetchStreams() {
+  const cid = selectedCampaign();
+  if (!cid) { showMsg('e-msg', 'Выберите кампанию', false); return; }
   try {
-    if (!offersCache.length) offersCache = await api('/offers');
-    const streams = await api(`/campaigns/${cid}/streams`);
-    if (!streams.length) container.innerHTML = '<p class="muted">В кампании нет потоков</p>';
-    streams.forEach(s => container.appendChild(renderStream(cid, s)));
+    const streams = await api(`/campaigns/${cid}/fetch_streams`, { method: 'POST' });
+    renderStreams(streams);
+    showMsg('e-msg', 'Потоки синхронизированы с Keitaro', true);
   } catch (e) {
     showMsg('e-msg', 'Ошибка: ' + e.message, false);
   }
 }
 
-function renderStream(cid, s) {
-  const div = document.createElement('div');
-  div.className = 'stream';
-  div.innerHTML = `<h3>#${s.id} — ${s.name}</h3>
-    <div class="muted">тип: ${s.type} · схема: ${s.schema} · состояние: ${s.state}</div>`;
-
-  const offers = s.offers || [];
-  const table = document.createElement('table');
-  table.innerHTML = '<tr><th>Оффер</th><th>Доля, %</th><th></th></tr>';
-  if (!offers.length) {
-    table.innerHTML += '<tr><td colspan="3" class="muted">Нет офферов в потоке</td></tr>';
+async function loadLocalStreams() {
+  const cid = selectedCampaign();
+  const container = document.getElementById('e-streams');
+  container.innerHTML = '';
+  if (!cid) return;
+  try {
+    const streams = await api(`/campaigns/${cid}/streams`);
+    if (streams.length) renderStreams(streams);
+    else container.innerHTML = '<p class="muted">Нажмите «Fetch streams again», чтобы загрузить потоки из Keitaro</p>';
+  } catch (e) {
+    showMsg('e-msg', 'Ошибка: ' + e.message, false);
   }
-  offers.forEach(o => {
+}
+
+function renderStreams(streams) {
+  const container = document.getElementById('e-streams');
+  container.innerHTML = '';
+  streams.forEach(s => container.appendChild(renderStream(s)));
+}
+
+function offerLabel(o) {
+  return o.offer_name ? `#${o.offer_id} — ${o.offer_name}` : `#${o.offer_id}`;
+}
+
+function renderStream(s) {
+  const div = document.createElement('div');
+  div.className = 'stream' + (s.dirty ? ' dirty' : '');
+
+  const toolbar = `<span class="toolbar">
+      <button class="action small" data-push ${s.dirty ? '' : 'disabled'}>Push to KTM</button>
+      <button class="action small ghost" data-cancel ${s.dirty ? '' : 'disabled'}>Cancel</button>
+    </span>`;
+  div.innerHTML = `<h3>#${s.keitaro_id} — ${s.name}</h3>
+    ${s.dirty ? '<span class="badge dirty">unpublished</span>' : ''}${toolbar}
+    <div class="muted">тип: ${s.type || '—'} · схема: ${s.schema || '—'} · состояние: ${s.state || '—'}</div>`;
+
+  const active = s.offers.filter(o => o.status === 'active');
+  const removed = s.offers.filter(o => o.status === 'removed');
+
+  const table = document.createElement('table');
+  table.innerHTML = '<tr><th>Оффер</th><th>Вес</th><th>Pin</th><th></th></tr>';
+  if (!active.length && !removed.length) {
+    table.innerHTML += '<tr><td colspan="4" class="muted">Поток без офферов</td></tr>';
+  }
+  active.forEach(o => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${offerName(o.offer_id)}</td>
-      <td><input type="number" min="1" max="100" value="${o.share}" style="min-width:70px;width:80px">
-          <button class="action small" data-save>Сохранить</button></td>
-      <td><button class="action danger" data-del>Удалить</button></td>`;
-    tr.querySelector('[data-save]').onclick = () => updateShare(cid, s.id, o.offer_id, tr.querySelector('input').value);
-    tr.querySelector('[data-del]').onclick = () => removeOffer(cid, s.id, o.offer_id);
+    tr.innerHTML = `<td>${offerLabel(o)}</td>
+      <td class="share">${o.share}%</td>
+      <td><button class="action small pin ${o.pinned ? 'on' : ''}" data-pin>${o.pinned ? '📌' : 'Pin'}</button></td>
+      <td><button class="action small danger" data-del>Remove</button></td>`;
+    tr.querySelector('[data-pin]').onclick = () => streamAction(s.id, `/offers/${o.offer_id}/pin`);
+    tr.querySelector('[data-del]').onclick = () => streamAction(s.id, `/offers/${o.offer_id}/remove`);
+    table.appendChild(tr);
+  });
+  removed.forEach(o => {
+    const tr = document.createElement('tr');
+    tr.className = 'removed';
+    tr.innerHTML = `<td>${offerLabel(o)} <span class="badge removed">Removed</span></td>
+      <td class="share">${o.share}%</td><td></td>
+      <td><button class="action small" data-back>Bring back</button></td>`;
+    tr.querySelector('[data-back]').onclick = () => streamAction(s.id, `/offers/${o.offer_id}/restore`);
     table.appendChild(tr);
   });
   div.appendChild(table);
 
+  // add-offer row with autocomplete
   const row = document.createElement('div');
   row.className = 'row';
-  const sel = document.createElement('select');
-  fillSelect(sel, offersCache.filter(x => !offers.some(o => o.offer_id === x.id)), { emptyLabel: '— выберите оффер —' });
-  const share = document.createElement('input');
-  share.type = 'number'; share.min = 1; share.max = 100; share.value = 100;
-  share.style.minWidth = '70px'; share.style.width = '80px';
-  const btn = document.createElement('button');
-  btn.className = 'action small'; btn.textContent = 'Добавить оффер';
-  btn.onclick = () => addOffer(cid, s.id, sel.value, share.value);
-  row.append(sel, share, btn);
+  const dlId = `dl-${s.id}`;
+  row.innerHTML = `<input list="${dlId}" placeholder="ID или название оффера" style="min-width:300px">
+    <datalist id="${dlId}"></datalist>
+    <button class="action small" data-add>Add offer</button>`;
+  const input = row.querySelector('input');
+  const datalist = row.querySelector('datalist');
+  input.oninput = async () => {
+    if (input.value.trim().length < 1) return;
+    try {
+      const found = await api(`/offers/search?query=${encodeURIComponent(input.value.trim())}`);
+      datalist.innerHTML = '';
+      (found || []).slice(0, 20).forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = String(o.id);
+        opt.label = o.name;
+        datalist.appendChild(opt);
+      });
+    } catch (e) { /* ignore autocomplete errors */ }
+  };
+  row.querySelector('[data-add]').onclick = () => {
+    const id = parseInt(input.value.trim(), 10);
+    if (!id) { showMsg('e-msg', 'Введите ID оффера', false); return; }
+    streamAction(s.id, '/offers', { offer_id: id });
+  };
   div.appendChild(row);
+
+  div.querySelector('[data-push]').onclick = () => streamAction(s.id, '/push', null, 'Изменения опубликованы в Keitaro');
+  div.querySelector('[data-cancel]').onclick = () => streamAction(s.id, '/cancel', null, 'Изменения отменены');
   return div;
 }
 
-async function addOffer(cid, sid, offerId, share) {
-  if (!offerId) { showMsg('e-msg', 'Выберите оффер', false); return; }
+async function streamAction(streamId, suffix, body, okText) {
   try {
-    await api(`/campaigns/${cid}/streams/${sid}/offers`, {
-      method: 'POST', body: JSON.stringify({ offer_id: parseInt(offerId, 10), share: parseInt(share, 10) }),
+    const stream = await api(`/streams/${streamId}${suffix}`, {
+      method: 'POST',
+      body: body ? JSON.stringify(body) : undefined,
     });
-    showMsg('e-msg', 'Оффер добавлен', true);
-    loadStreams();
-  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
-}
-
-async function removeOffer(cid, sid, offerId) {
-  try {
-    await api(`/campaigns/${cid}/streams/${sid}/offers/${offerId}`, { method: 'DELETE' });
-    showMsg('e-msg', 'Оффер удалён', true);
-    loadStreams();
-  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
-}
-
-async function updateShare(cid, sid, offerId, share) {
-  try {
-    await api(`/campaigns/${cid}/streams/${sid}/offers/${offerId}`, {
-      method: 'PUT', body: JSON.stringify({ offer_id: offerId, share: parseInt(share, 10) }),
-    });
-    showMsg('e-msg', 'Доля обновлена', true);
-  } catch (e) { showMsg('e-msg', 'Ошибка: ' + e.message, false); }
+    const container = document.getElementById('e-streams');
+    const old = Array.from(container.children).find(
+      el => el.querySelector('h3') && el.querySelector('h3').textContent.includes(`#${stream.keitaro_id} `)
+    );
+    const fresh = renderStream(stream);
+    if (old) container.replaceChild(fresh, old); else container.appendChild(fresh);
+    if (okText) showMsg('e-msg', okText, true); else document.getElementById('e-msg').className = 'msg';
+  } catch (e) {
+    showMsg('e-msg', 'Ошибка: ' + e.message, false);
+  }
 }
 
 loadRefs();

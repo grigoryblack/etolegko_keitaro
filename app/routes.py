@@ -4,14 +4,35 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db
 from .keitaro import KeitaroClient, KeitaroError, get_keitaro_client
-from .models import CampaignRecord
+from .models import CampaignRecord, Stream, StreamOffer
 from .schemas import CampaignCreateRequest, OfferAddRequest
+from .services import (
+    active_offers_payload,
+    recalc_shares,
+    restore_baseline,
+    serialize_stream,
+    sync_stream_from_keitaro,
+)
 
 router = APIRouter(prefix="/api")
 
 
 def handle_keitaro_error(exc: KeitaroError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def get_stream_or_404(db: Session, stream_id: int) -> Stream:
+    stream = db.get(Stream, stream_id)
+    if stream is None:
+        raise HTTPException(status_code=404, detail="Stream not found. Fetch streams first.")
+    return stream
+
+
+def get_offer_or_404(stream: Stream, offer_id: int) -> StreamOffer:
+    for offer in stream.offers:
+        if offer.offer_id == offer_id:
+            return offer
+    raise HTTPException(status_code=404, detail="Offer not found in this stream")
 
 
 # --- reference data -----------------------------------------------------
@@ -47,6 +68,25 @@ async def offers(client: KeitaroClient = Depends(get_keitaro_client)):
         return await client.list_offers()
     except KeitaroError as exc:
         raise handle_keitaro_error(exc)
+
+
+@router.get("/offers/search")
+async def search_offers(
+    query: str = "", client: KeitaroClient = Depends(get_keitaro_client)
+):
+    """Offer autocomplete: filters Keitaro offers by id or name substring."""
+    try:
+        all_offers = await client.list_offers()
+    except KeitaroError as exc:
+        raise handle_keitaro_error(exc)
+    q = query.strip().lower()
+    if not q:
+        return all_offers
+    return [
+        o
+        for o in all_offers
+        if q in str(o.get("id", "")) or q in (o.get("name") or "").lower()
+    ]
 
 
 # --- part 1: campaign creator -------------------------------------------
@@ -128,7 +168,7 @@ def local_campaigns(db: Session = Depends(get_db)):
     return db.query(CampaignRecord).order_by(CampaignRecord.id.desc()).all()
 
 
-# --- part 2: campaign offers editor --------------------------------------
+# --- part 2: staged offers editor ----------------------------------------
 
 
 @router.get("/campaigns")
@@ -139,91 +179,155 @@ async def list_campaigns(client: KeitaroClient = Depends(get_keitaro_client)):
         raise handle_keitaro_error(exc)
 
 
+@router.post("/campaigns/{campaign_id}/fetch_streams")
+async def fetch_streams(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro_client),
+):
+    """Pull streams from Keitaro and merge them into the local DB.
+
+    Streams without offers are stored as plain streams. Offers that were in
+    Keitaro before but are gone now are kept locally with status 'removed'.
+    """
+    try:
+        kstreams = await client.list_streams(campaign_id)
+        koffers = await client.list_offers()
+    except KeitaroError as exc:
+        raise handle_keitaro_error(exc)
+
+    offer_names = {o["id"]: o.get("name") for o in koffers or []}
+
+    for ks in kstreams or []:
+        stream = (
+            db.query(Stream).filter(Stream.keitaro_id == ks["id"]).one_or_none()
+        )
+        if stream is None:
+            stream = Stream(keitaro_id=ks["id"], campaign_id=campaign_id)
+            db.add(stream)
+        stream.campaign_id = campaign_id
+        stream.name = ks.get("name") or f"Stream {ks['id']}"
+        stream.type = ks.get("type")
+        stream.schema = ks.get("schema")
+        stream.state = ks.get("state")
+        sync_stream_from_keitaro(db, stream, ks, offer_names)
+
+    db.commit()
+    streams = (
+        db.query(Stream)
+        .filter(Stream.campaign_id == campaign_id)
+        .order_by(Stream.id)
+        .all()
+    )
+    return [serialize_stream(s) for s in streams]
+
+
 @router.get("/campaigns/{campaign_id}/streams")
-async def list_streams(
-    campaign_id: int, client: KeitaroClient = Depends(get_keitaro_client)
-):
-    try:
-        return await client.list_streams(campaign_id)
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
+def list_local_streams(campaign_id: int, db: Session = Depends(get_db)):
+    streams = (
+        db.query(Stream)
+        .filter(Stream.campaign_id == campaign_id)
+        .order_by(Stream.id)
+        .all()
+    )
+    return [serialize_stream(s) for s in streams]
 
 
-def _current_offers(stream: dict) -> list[dict]:
-    return [
-        {"offer_id": o["offer_id"], "share": o.get("share", 100)}
-        for o in stream.get("offers") or []
-    ]
-
-
-@router.post("/campaigns/{campaign_id}/streams/{stream_id}/offers")
+@router.post("/streams/{stream_id}/offers", status_code=201)
 async def add_offer(
-    campaign_id: int,
     stream_id: int,
     body: OfferAddRequest,
+    db: Session = Depends(get_db),
     client: KeitaroClient = Depends(get_keitaro_client),
 ):
-    try:
-        stream = await client.get_stream(stream_id)
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
-
-    offers = _current_offers(stream)
-    if any(o["offer_id"] == body.offer_id for o in offers):
-        raise HTTPException(status_code=400, detail="Offer is already in this stream")
-    offers.append({"offer_id": body.offer_id, "share": body.share})
-
-    try:
-        return await client.update_stream(stream_id, {"offers": offers})
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
-
-
-@router.delete("/campaigns/{campaign_id}/streams/{stream_id}/offers/{offer_id}")
-async def remove_offer(
-    campaign_id: int,
-    stream_id: int,
-    offer_id: int,
-    client: KeitaroClient = Depends(get_keitaro_client),
-):
-    try:
-        stream = await client.get_stream(stream_id)
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
-
-    offers = _current_offers(stream)
-    remaining = [o for o in offers if o["offer_id"] != offer_id]
-    if len(remaining) == len(offers):
-        raise HTTPException(status_code=404, detail="Offer not found in this stream")
-
-    try:
-        return await client.update_stream(stream_id, {"offers": remaining})
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
-
-
-@router.put("/campaigns/{campaign_id}/streams/{stream_id}/offers/{offer_id}")
-async def update_offer_share(
-    campaign_id: int,
-    stream_id: int,
-    offer_id: int,
-    body: OfferAddRequest,
-    client: KeitaroClient = Depends(get_keitaro_client),
-):
-    try:
-        stream = await client.get_stream(stream_id)
-    except KeitaroError as exc:
-        raise handle_keitaro_error(exc)
-
-    offers = _current_offers(stream)
-    for o in offers:
-        if o["offer_id"] == offer_id:
-            o["share"] = body.share
-            break
+    stream = get_stream_or_404(db, stream_id)
+    existing = next(
+        (o for o in stream.offers if o.offer_id == body.offer_id), None
+    )
+    if existing is not None:
+        if existing.status == "active":
+            raise HTTPException(400, "Offer is already in this stream")
+        existing.status = "active"  # re-adding a removed offer restores it
     else:
-        raise HTTPException(status_code=404, detail="Offer not found in this stream")
+        try:
+            koffer = await client.get(f"/offers/{body.offer_id}")
+            name = koffer.get("name")
+        except KeitaroError:
+            name = None
+        stream.offers.append(
+            StreamOffer(offer_id=body.offer_id, offer_name=name, status="active")
+        )
+    recalc_shares(stream)
+    stream.dirty = True
+    db.commit()
+    return serialize_stream(stream)
 
+
+@router.post("/streams/{stream_id}/offers/{offer_id}/remove")
+def remove_offer(stream_id: int, offer_id: int, db: Session = Depends(get_db)):
+    stream = get_stream_or_404(db, stream_id)
+    offer = get_offer_or_404(stream, offer_id)
+    if offer.status == "removed":
+        raise HTTPException(400, "Offer is already removed")
+    offer.status = "removed"
+    recalc_shares(stream)
+    stream.dirty = True
+    db.commit()
+    return serialize_stream(stream)
+
+
+@router.post("/streams/{stream_id}/offers/{offer_id}/restore")
+def restore_offer(stream_id: int, offer_id: int, db: Session = Depends(get_db)):
+    stream = get_stream_or_404(db, stream_id)
+    offer = get_offer_or_404(stream, offer_id)
+    if offer.status == "active":
+        raise HTTPException(400, "Offer is not removed")
+    offer.status = "active"
+    recalc_shares(stream)
+    stream.dirty = True
+    db.commit()
+    return serialize_stream(stream)
+
+
+@router.post("/streams/{stream_id}/offers/{offer_id}/pin")
+def toggle_pin(stream_id: int, offer_id: int, db: Session = Depends(get_db)):
+    stream = get_stream_or_404(db, stream_id)
+    offer = get_offer_or_404(stream, offer_id)
+    if offer.status != "active":
+        raise HTTPException(400, "Cannot pin a removed offer")
+    offer.pinned = not offer.pinned
+    recalc_shares(stream)
+    stream.dirty = True
+    db.commit()
+    return serialize_stream(stream)
+
+
+@router.post("/streams/{stream_id}/cancel")
+def cancel_changes(stream_id: int, db: Session = Depends(get_db)):
+    stream = get_stream_or_404(db, stream_id)
+    restore_baseline(db, stream)
+    db.commit()
+    return serialize_stream(stream)
+
+
+@router.post("/streams/{stream_id}/push")
+async def push_to_keitaro(
+    stream_id: int,
+    db: Session = Depends(get_db),
+    client: KeitaroClient = Depends(get_keitaro_client),
+):
+    stream = get_stream_or_404(db, stream_id)
     try:
-        return await client.update_stream(stream_id, {"offers": offers})
+        await client.update_stream(
+            stream.keitaro_id, {"offers": active_offers_payload(stream)}
+        )
     except KeitaroError as exc:
         raise handle_keitaro_error(exc)
+
+    stream.synced_offers = active_offers_payload(stream)
+    for o in stream.offers:
+        if o.status == "active":
+            o.was_synced = True
+    stream.dirty = False
+    db.commit()
+    return serialize_stream(stream)

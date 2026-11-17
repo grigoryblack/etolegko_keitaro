@@ -24,4 +24,3 @@ class CampaignCreateRequest(BaseModel):
 
 class OfferAddRequest(BaseModel):
     offer_id: int = Field(gt=0)
-    share: int = Field(default=100, ge=1, le=100)

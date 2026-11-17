@@ -23,13 +23,26 @@
 
 Созданные кампании сохраняются в локальную БД (таблица `campaigns`).
 
-### Редактор офферов
+### Редактор офферов (staged)
 
-- `GET /api/campaigns` — список кампаний из Keitaro
-- `GET /api/campaigns/{id}/streams` — потоки кампании с офферами
-- `POST /api/campaigns/{cid}/streams/{sid}/offers` — добавить оффер `{offer_id, share}`
-- `PUT /api/campaigns/{cid}/streams/{sid}/offers/{oid}` — изменить долю оффера
-- `DELETE /api/campaigns/{cid}/streams/{sid}/offers/{oid}` — удалить оффер
+Потоки сначала вытягиваются из Keitaro в локальную БД (`Fetch streams again`),
+все правки идут локально, поток при этом подсвечивается жёлтым (unpublished).
+Публикация — `Push to KTM`, откат — `Cancel`.
+
+- `POST /api/campaigns/{id}/fetch_streams` — синхронизация потоков из Keitaro
+  (потоки без офферов тоже сохраняются; офферы, удалённые в Keitaro напрямую,
+  помечаются `Removed` и остаются в архиве)
+- `GET /api/campaigns/{id}/streams` — локально сохранённые потоки
+- `GET /api/offers/search?query=` — автокомплит офферов для добавления
+- `POST /api/streams/{id}/offers {offer_id}` — добавить оффер (веса пересчитываются)
+- `POST /api/streams/{id}/offers/{oid}/remove` — удалить (статус `Removed`, вес 0)
+- `POST /api/streams/{id}/offers/{oid}/restore` — Bring back
+- `POST /api/streams/{id}/offers/{oid}/pin` — закрепить вес (не участвует в пересчёте)
+- `POST /api/streams/{id}/push` — отправить активные офферы и веса в Keitaro
+- `POST /api/streams/{id}/cancel` — откатить неопубликованные изменения
+
+Пересчёт весов: сумма активных офферов всегда 100%; закреплённые (Pin)
+сохраняют свой вес, остаток делится поровну между остальными.
 
 ## Запуск
 
