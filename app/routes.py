@@ -3,9 +3,15 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
-from .keitaro import KeitaroClient, KeitaroError, get_keitaro_client
+from .keitaro import (
+    KeitaroClient,
+    KeitaroError,
+    KeitaroNotAuthenticated,
+    get_keitaro_client,
+    set_keitaro_client,
+)
 from .models import CampaignRecord, Stream, StreamOffer
-from .schemas import CampaignCreateRequest, OfferAddRequest
+from .schemas import CampaignCreateRequest, LoginRequest, OfferAddRequest
 from .services import (
     active_offers_payload,
     recalc_shares,
@@ -19,6 +25,38 @@ router = APIRouter(prefix="/api")
 
 def handle_keitaro_error(exc: KeitaroError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def keitaro_dep() -> KeitaroClient:
+    try:
+        return get_keitaro_client()
+    except KeitaroNotAuthenticated:
+        raise HTTPException(status_code=401, detail="Not connected to Keitaro")
+
+
+# --- auth / connection ----------------------------------------------------
+
+
+@router.post("/auth/login")
+async def login(body: LoginRequest):
+    try:
+        client = await KeitaroClient.login(body.base_url, body.login, body.password)
+    except KeitaroError as exc:
+        raise handle_keitaro_error(exc)
+    set_keitaro_client(client)
+    return {"connected": True, "base_url": client.base_url}
+
+
+@router.post("/auth/logout")
+def logout():
+    set_keitaro_client(None)
+    return {"connected": False}
+
+
+@router.get("/auth/status")
+def auth_status():
+    client = get_keitaro_client()
+    return {"connected": client is not None, "base_url": client and client.base_url}
 
 
 def get_stream_or_404(db: Session, stream_id: int) -> Stream:
@@ -39,7 +77,7 @@ def get_offer_or_404(stream: Stream, offer_id: int) -> StreamOffer:
 
 
 @router.get("/domains")
-async def domains(client: KeitaroClient = Depends(get_keitaro_client)):
+async def domains(client: KeitaroClient = Depends(keitaro_dep)):
     try:
         return await client.list_domains()
     except KeitaroError as exc:
@@ -47,7 +85,7 @@ async def domains(client: KeitaroClient = Depends(get_keitaro_client)):
 
 
 @router.get("/groups")
-async def groups(client: KeitaroClient = Depends(get_keitaro_client)):
+async def groups(client: KeitaroClient = Depends(keitaro_dep)):
     try:
         return await client.list_groups("campaigns")
     except KeitaroError as exc:
@@ -55,7 +93,7 @@ async def groups(client: KeitaroClient = Depends(get_keitaro_client)):
 
 
 @router.get("/sources")
-async def sources(client: KeitaroClient = Depends(get_keitaro_client)):
+async def sources(client: KeitaroClient = Depends(keitaro_dep)):
     try:
         return await client.list_traffic_sources()
     except KeitaroError as exc:
@@ -63,7 +101,7 @@ async def sources(client: KeitaroClient = Depends(get_keitaro_client)):
 
 
 @router.get("/offers")
-async def offers(client: KeitaroClient = Depends(get_keitaro_client)):
+async def offers(client: KeitaroClient = Depends(keitaro_dep)):
     try:
         return await client.list_offers()
     except KeitaroError as exc:
@@ -72,7 +110,7 @@ async def offers(client: KeitaroClient = Depends(get_keitaro_client)):
 
 @router.get("/offers/search")
 async def search_offers(
-    query: str = "", client: KeitaroClient = Depends(get_keitaro_client)
+    query: str = "", client: KeitaroClient = Depends(keitaro_dep)
 ):
     """Offer autocomplete: filters Keitaro offers by id or name substring."""
     try:
@@ -96,7 +134,7 @@ async def search_offers(
 async def create_campaign(
     body: CampaignCreateRequest,
     db: Session = Depends(get_db),
-    client: KeitaroClient = Depends(get_keitaro_client),
+    client: KeitaroClient = Depends(keitaro_dep),
 ):
     campaign_payload = {"name": body.name, "alias": body.alias}
     if body.domain_id is not None:
@@ -172,7 +210,7 @@ def local_campaigns(db: Session = Depends(get_db)):
 
 
 @router.get("/campaigns")
-async def list_campaigns(client: KeitaroClient = Depends(get_keitaro_client)):
+async def list_campaigns(client: KeitaroClient = Depends(keitaro_dep)):
     try:
         return await client.list_campaigns()
     except KeitaroError as exc:
@@ -183,7 +221,7 @@ async def list_campaigns(client: KeitaroClient = Depends(get_keitaro_client)):
 async def fetch_streams(
     campaign_id: int,
     db: Session = Depends(get_db),
-    client: KeitaroClient = Depends(get_keitaro_client),
+    client: KeitaroClient = Depends(keitaro_dep),
 ):
     """Pull streams from Keitaro and merge them into the local DB.
 
@@ -238,7 +276,7 @@ async def add_offer(
     stream_id: int,
     body: OfferAddRequest,
     db: Session = Depends(get_db),
-    client: KeitaroClient = Depends(get_keitaro_client),
+    client: KeitaroClient = Depends(keitaro_dep),
 ):
     stream = get_stream_or_404(db, stream_id)
     existing = next(
@@ -250,8 +288,8 @@ async def add_offer(
         existing.status = "active"  # re-adding a removed offer restores it
     else:
         try:
-            koffer = await client.get(f"/offers/{body.offer_id}")
-            name = koffer.get("name")
+            koffer = await client.get_offer(body.offer_id)
+            name = koffer.get("name") if koffer else None
         except KeitaroError:
             name = None
         stream.offers.append(
@@ -314,7 +352,7 @@ def cancel_changes(stream_id: int, db: Session = Depends(get_db)):
 async def push_to_keitaro(
     stream_id: int,
     db: Session = Depends(get_db),
-    client: KeitaroClient = Depends(get_keitaro_client),
+    client: KeitaroClient = Depends(keitaro_dep),
 ):
     stream = get_stream_or_404(db, stream_id)
     try:

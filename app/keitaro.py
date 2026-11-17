@@ -1,10 +1,13 @@
-"""Thin async client for the Keitaro Admin API v1."""
+"""Client for the Keitaro admin panel legacy object API.
+
+Authentication is session based: POST /admin/?object=auth.login with
+{login, password} returns a `states` cookie which is then used for all
+/admin/?object=<resource> calls.
+"""
 
 from typing import Any
 
 import httpx
-
-from .config import settings
 
 
 class KeitaroError(Exception):
@@ -14,77 +17,130 @@ class KeitaroError(Exception):
         super().__init__(f"Keitaro API error {status_code}: {detail}")
 
 
-class KeitaroClient:
-    def __init__(self, base_url: str | None = None, api_key: str | None = None):
-        self.base_url = (base_url or settings.keitaro_api_url).rstrip("/")
-        self.api_key = api_key if api_key is not None else settings.keitaro_api_key
+class KeitaroNotAuthenticated(KeitaroError):
+    def __init__(self):
+        super().__init__(401, "Session expired or not connected")
 
-    async def _request(self, method: str, path: str, **kwargs) -> Any:
-        url = f"{self.base_url}/{path.lstrip('/')}"
+
+class KeitaroClient:
+    def __init__(self, base_url: str, session_cookie: str):
+        self.base_url = base_url.rstrip("/")
+        self.admin_url = f"{self.base_url}/admin/"
+        self.session_cookie = session_cookie
+
+    @classmethod
+    async def login(cls, base_url: str, login: str, password: str) -> "KeitaroClient":
+        base_url = base_url.rstrip("/")
+        admin_url = f"{base_url}/admin/"
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                admin_url,
+                params={"object": "auth.login"},
+                json={"login": login, "password": password},
+            )
+        if resp.status_code >= 400:
+            raise KeitaroError(resp.status_code, resp.text[:500])
+        try:
+            data = resp.json()
+        except Exception:
+            data = {}
+        if not data.get("success"):
+            raise KeitaroError(401, data.get("message") or "Login failed")
+        cookie = resp.cookies.get("states")
+        if not cookie:
+            raise KeitaroError(401, "No session cookie returned by Keitaro")
+        return cls(base_url, cookie)
+
+    async def _request(
+        self, method: str, obj: str, params: dict | None = None, payload: Any = None
+    ) -> Any:
+        query = {"object": obj}
+        if params:
+            query.update(params)
         headers = {
-            "Api-Key": self.api_key,
+            "Cookie": f"states={self.session_cookie}",
             "Accept": "application/json",
-            "Content-Type": "application/json",
         }
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.request(method, url, headers=headers, **kwargs)
-        if response.status_code >= 400:
+            resp = await client.request(
+                method, self.admin_url, params=query, json=payload, headers=headers
+            )
+        if resp.status_code == 401:
+            raise KeitaroNotAuthenticated()
+        if resp.status_code >= 400:
             try:
-                detail = response.json()
+                detail = resp.json()
             except Exception:
-                detail = response.text
-            raise KeitaroError(response.status_code, detail)
-        if not response.content:
+                detail = resp.text[:500]
+            raise KeitaroError(resp.status_code, detail)
+        if not resp.content:
             return None
-        return response.json()
+        try:
+            data = resp.json()
+        except Exception:
+            raise KeitaroError(resp.status_code, resp.text[:500])
+        if isinstance(data, dict) and data.get("error"):
+            raise KeitaroError(resp.status_code, data["error"])
+        return data
 
-    async def get(self, path: str, params: dict | None = None) -> Any:
-        return await self._request("GET", path, params=params)
-
-    async def post(self, path: str, payload: dict | None = None) -> Any:
-        return await self._request("POST", path, json=payload or {})
-
-    async def put(self, path: str, payload: dict | None = None) -> Any:
-        return await self._request("PUT", path, json=payload or {})
-
-    async def delete(self, path: str) -> Any:
-        return await self._request("DELETE", path)
+    @staticmethod
+    def _first(data: Any) -> Any:
+        return data[0] if isinstance(data, list) else data
 
     # --- entities -------------------------------------------------------
 
     async def list_domains(self):
-        return await self.get("/domains")
+        return await self._request("GET", "domains")
 
     async def list_groups(self, group_type: str = "campaigns"):
-        return await self.get("/groups", params={"type": group_type})
+        return await self._request("GET", "groups", params={"type": group_type})
 
     async def list_traffic_sources(self):
-        return await self.get("/traffic_sources")
+        try:
+            return await self._request("GET", "traffic_sources")
+        except KeitaroError:
+            return await self._request("GET", "sources")
 
     async def list_offers(self):
-        return await self.get("/offers")
+        return await self._request("GET", "offers")
+
+    async def get_offer(self, offer_id: int):
+        data = await self._request("GET", "offers", params={"id": offer_id})
+        return self._first(data)
 
     async def list_campaigns(self):
-        return await self.get("/campaigns")
-
-    async def get_campaign(self, campaign_id: int):
-        return await self.get(f"/campaigns/{campaign_id}")
+        return await self._request("GET", "campaigns")
 
     async def create_campaign(self, payload: dict):
-        return await self.post("/campaigns", payload)
+        return await self._request("POST", "campaigns.create", payload=payload)
 
     async def list_streams(self, campaign_id: int):
-        return await self.get(f"/campaigns/{campaign_id}/streams")
-
-    async def get_stream(self, stream_id: int):
-        return await self.get(f"/streams/{stream_id}")
+        return await self._request(
+            "GET", "streams", params={"campaign_id": campaign_id}
+        )
 
     async def create_stream(self, payload: dict):
-        return await self.post("/streams", payload)
+        return await self._request("POST", "streams.create", payload=payload)
 
     async def update_stream(self, stream_id: int, payload: dict):
-        return await self.put(f"/streams/{stream_id}", payload)
+        return await self._request(
+            "PUT", "streams.update", params={"id": stream_id}, payload=payload
+        )
+
+
+# --- connection store ----------------------------------------------------
+# Single-session store: the app is a local single-user wrapper, so the
+# Keitaro connection is kept in memory. Re-login after a restart.
+
+_current_client: KeitaroClient | None = None
+
+
+def set_keitaro_client(client: KeitaroClient | None) -> None:
+    global _current_client
+    _current_client = client
 
 
 def get_keitaro_client() -> KeitaroClient:
-    return KeitaroClient()
+    if _current_client is None:
+        raise KeitaroNotAuthenticated()
+    return _current_client

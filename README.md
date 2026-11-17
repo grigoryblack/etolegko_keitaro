@@ -1,25 +1,28 @@
 # Keitaro Campaign Manager
 
-Обёртка над Keitaro Admin API v1: создание кампаний с двумя потоками и редактор
+Обёртка над админкой Keitaro: создание кампаний с двумя потоками и staged-редактор
 офферов в существующих кампаниях.
 
 ## Стек
 
-- FastAPI + SQLAlchemy + Alembic
-- httpx — клиент к Keitaro Admin API (`/admin_api/v1`, заголовок `Api-Key`)
-- Фронт: один HTML-файл на чистом JS (`app/static/index.html`)
+- Backend: FastAPI + SQLAlchemy + Alembic + httpx
+- Frontend: React + Vite + Tailwind + shadcn/ui (`frontend/`)
+- Auth: логин/пароль админки Keitaro через форму в UI (без .env).
+  Бэкенд вызывает `POST {tracker}/admin/?object=auth.login`, получает сессионную
+  куку `states` и дальше работает через legacy object API `/admin/?object=...`
+  (аналог Admin API v1). Сессия хранится в памяти сервера.
 
 ## Функционал
 
 ### Создаватор кампаний
 
 `POST /api/campaigns` принимает название, гео-код страны (ISO alpha-2) и ID
-оффера Keitaro, плюс опционально `domain_id`, `group_id`, `source_id`
-(в UI — выпадающие списки, заполненные из API). Создаёт кампанию и два потока:
+оффера Keitaro, плюс опционально `domain_id`, `group_id`, `source_id`.
+Создаёт кампанию и два потока:
 
-1. `GEO -> Google` — обычный поток с фильтром `country = accept [GEO]`,
+1. `GEO -> Google` — поток с фильтром `country = accept [GEO]`,
    редирект (schema `redirect`, `action_type: http`) на Google.
-2. `Offer` — поток со схемой `landings`, отправляющий трафик на выбранный оффер.
+2. `Offer` — поток со схемой `landings`, весь трафик на выбранный оффер.
 
 Созданные кампании сохраняются в локальную БД (таблица `campaigns`).
 
@@ -33,51 +36,53 @@
   (потоки без офферов тоже сохраняются; офферы, удалённые в Keitaro напрямую,
   помечаются `Removed` и остаются в архиве)
 - `GET /api/campaigns/{id}/streams` — локально сохранённые потоки
-- `GET /api/offers/search?query=` — автокомплит офферов для добавления
+- `GET /api/offers/search?query=` — автокомплит офферов
 - `POST /api/streams/{id}/offers {offer_id}` — добавить оффер (веса пересчитываются)
 - `POST /api/streams/{id}/offers/{oid}/remove` — удалить (статус `Removed`, вес 0)
 - `POST /api/streams/{id}/offers/{oid}/restore` — Bring back
-- `POST /api/streams/{id}/offers/{oid}/pin` — закрепить вес (не участвует в пересчёте)
+- `POST /api/streams/{id}/offers/{oid}/pin` — закрепить вес
 - `POST /api/streams/{id}/push` — отправить активные офферы и веса в Keitaro
 - `POST /api/streams/{id}/cancel` — откатить неопубликованные изменения
 
 Пересчёт весов: сумма активных офферов всегда 100%; закреплённые (Pin)
 сохраняют свой вес, остаток делится поровну между остальными.
 
+Auth endpoints: `POST /api/auth/login {base_url, login, password}`,
+`POST /api/auth/logout`, `GET /api/auth/status`.
+
 ## Запуск
+
+### Backend
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # прописать KEITARO_API_URL и KEITARO_API_KEY
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload   # http://localhost:8000
 ```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev                   # http://localhost:5173 (прокси /api → :8000)
+```
+
+Открыть http://localhost:5173, в форме ввести URL трекера
+(например `https://tlgk.host`) и креды админки.
 
 ### Миграции
 
 ```bash
-alembic upgrade head
+alembic upgrade head                              # применить
+alembic revision --autogenerate -m "message"      # новая миграция
 ```
-
-Новая миграция при изменении моделей:
-
-```bash
-alembic revision --autogenerate -m "message"
-alembic upgrade head
-```
-
-### Сервер
-
-```bash
-uvicorn app.main:app --reload
-```
-
-UI: http://localhost:8000/ , Swagger: http://localhost:8000/docs
 
 ## Конфигурация (.env)
 
 | Переменная | Описание |
 |---|---|
-| `KEITARO_API_URL` | Базовый URL Admin API, напр. `https://tracker.example.com/admin_api/v1` |
-| `KEITARO_API_KEY` | Ключ из админки Keitaro (Maintenance → Users → Admin API keys) |
 | `DATABASE_URL` | SQLAlchemy-строка подключения (по умолчанию SQLite) |
 | `GOOGLE_REDIRECT_URL` | URL редиректа гео-потока |
