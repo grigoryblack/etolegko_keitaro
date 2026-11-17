@@ -65,6 +65,10 @@ docker compose up        # http://localhost:8080
 
 Остановка: `docker compose down`. Полный сброс БД: `docker compose down -v`.
 
+После старта откройте http://localhost:8080 и в форме входа введите
+URL трекера (например `https://tlgk.host`) и **логин/пароль от админки Keitaro**
+— приложение работает от имени этой учётной записи.
+
 ### Backend (локально)
 
 ```bash
