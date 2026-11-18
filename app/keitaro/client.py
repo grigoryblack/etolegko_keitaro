@@ -114,6 +114,14 @@ class KeitaroClient:
     async def create_campaign(self, payload: dict):
         return await self._request("POST", "campaigns.create", payload=payload)
 
+    async def update_campaign(self, campaign_id: int, payload: dict):
+        return await self._request(
+            "PUT", "campaigns.update", params={"id": campaign_id}, payload=payload
+        )
+
+    async def disable_campaign(self, campaign_id: int):
+        return await self.update_campaign(campaign_id, {"state": "disabled"})
+
     async def list_streams(self, campaign_id: int):
         return await self._request(
             "GET", "streams", params={"campaign_id": campaign_id}

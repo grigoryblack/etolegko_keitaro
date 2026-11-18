@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import handle_keitaro_error, keitaro_dep
+from app.api.routes.references import _matches
 from app.core.database import get_db
 from app.keitaro.client import KeitaroClient, KeitaroError
 from app.models import CampaignRecord, Stream
@@ -41,20 +42,17 @@ async def list_campaigns(client: KeitaroClient = Depends(keitaro_dep)):
 async def search_campaigns(
     query: str = "", client: KeitaroClient = Depends(keitaro_dep)
 ):
-    """Campaign autocomplete: filters Keitaro campaigns by id/name/alias."""
+    """Campaign autocomplete: every space-separated token must match id/name/alias."""
     try:
         all_campaigns = await client.list_campaigns()
     except KeitaroError as exc:
         raise handle_keitaro_error(exc)
-    q = query.strip().lower()
-    if not q:
+    if not query.strip():
         return all_campaigns
     return [
         c
         for c in all_campaigns
-        if q in str(c.get("id", ""))
-        or q in (c.get("name") or "").lower()
-        or q in (c.get("alias") or "").lower()
+        if _matches(query, c.get("id"), c.get("name"), c.get("alias"))
     ]
 
 

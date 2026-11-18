@@ -6,6 +6,11 @@ from app.keitaro.client import KeitaroClient, KeitaroError
 router = APIRouter(tags=["references"])
 
 
+def _matches(query: str, *fields: object) -> bool:
+    haystack = " ".join(str(f or "") for f in fields).lower()
+    return all(token in haystack for token in query.lower().replace("#", " ").split())
+
+
 @router.get("/domains")
 async def domains(client: KeitaroClient = Depends(keitaro_dep)):
     try:
@@ -42,16 +47,11 @@ async def offers(client: KeitaroClient = Depends(keitaro_dep)):
 async def search_offers(
     query: str = "", client: KeitaroClient = Depends(keitaro_dep)
 ):
-    """Offer autocomplete: filters Keitaro offers by id or name substring."""
+    """Offer autocomplete: every space-separated token must match id or name."""
     try:
         all_offers = await client.list_offers()
     except KeitaroError as exc:
         raise handle_keitaro_error(exc)
-    q = query.strip().lower()
-    if not q:
+    if not query.strip():
         return all_offers
-    return [
-        o
-        for o in all_offers
-        if q in str(o.get("id", "")) or q in (o.get("name") or "").lower()
-    ]
+    return [o for o in all_offers if _matches(query, o.get("id"), o.get("name"))]
